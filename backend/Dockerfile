@@ -1,6 +1,6 @@
-FROM node:20-alpine
-# openssl нужен Prisma на alpine
-RUN apk add --no-cache openssl
+FROM node:20-slim
+# openssl нужен Prisma; Debian-база надёжнее alpine на РФ-сети (нет тормозов apk CDN)
+RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
 COPY package*.json ./
