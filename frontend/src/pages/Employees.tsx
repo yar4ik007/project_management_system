@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api, Employee, Role, ROLE_LABEL } from '../api';
 import { Modal } from '../ui';
+import { setActingAs } from '../impersonation';
 
 const EMPTY: Partial<Employee> = { name: '', role: 'DEVELOPER', weeklyHours: 40, active: true, position: '' };
 
 export default function Employees() {
   const [list, setList] = useState<Employee[]>([]);
   const [edit, setEdit] = useState<Partial<Employee> | null>(null);
+  const nav = useNavigate();
 
   const load = () => api.employees.list().then(setList);
   useEffect(() => {
@@ -62,6 +65,16 @@ export default function Employees() {
                 <td>{e.members?.map((m) => m.project.code).join(', ') || '—'}</td>
                 <td>{e.active ? '✓ активен' : <span className="muted">неактивен</span>}</td>
                 <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  <button
+                    className="sm primary"
+                    title="Войти и смотреть его глазами"
+                    onClick={() => {
+                      setActingAs(e.id);
+                      nav('/me');
+                    }}
+                  >
+                    👁 Войти
+                  </button>{' '}
                   <button className="sm" onClick={() => setEdit(e)}>
                     Изм.
                   </button>{' '}

@@ -309,6 +309,21 @@ label {
   border: none;
   border-radius: 0;
 }
+.impersonation {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  color: #78350f;
+  padding: 8px 14px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+.impersonation button {
+  margin-left: auto;
+}
 .progress-wrap {
   margin-top: 6px;
 }
