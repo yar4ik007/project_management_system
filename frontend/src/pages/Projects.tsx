@@ -22,6 +22,12 @@ export default function Projects() {
     load();
   };
 
+  const remove = async (p: Project) => {
+    if (!confirm(`Удалить проект «${p.name}»? Его задачи, планы и таймлоги тоже удалятся.`)) return;
+    await api.projects.remove(p.id);
+    load();
+  };
+
   return (
     <div>
       <div className="page-head">
@@ -31,44 +37,78 @@ export default function Projects() {
         </button>
       </div>
 
-      <div className="grid grid-3">
-        {list.map((p) => {
-          const st = p.stats;
-          const pct = st && st.taskCount ? Math.round((st.doneCount / st.taskCount) * 100) : 0;
-          return (
-            <div className="card" key={p.id}>
-              <div className="flex-between">
-                <span className="tag" style={{ background: p.color }}>
-                  {p.code}
-                </span>
-                <span className="badge" style={{ background: PROJECT_STATUS_COLOR[p.status], color: '#fff' }}>
-                  {STATUS_LABEL[p.status]}
-                </span>
-              </div>
-              <h3 style={{ margin: '10px 0 4px' }}>
-                <Link to={`/projects/${p.id}`}>{p.name}</Link>
-              </h3>
-              <div className="muted" style={{ minHeight: 20 }}>
-                {p.description || ''}
-              </div>
-              <div className="progress-wrap">
-                <div className="flex-between" style={{ fontSize: 12, marginBottom: 4 }}>
-                  <span>
-                    Задач: {st?.doneCount}/{st?.taskCount} готово
-                  </span>
-                  <span>{pct}%</span>
-                </div>
-                <div className="bar">
-                  <span style={{ width: `${pct}%`, background: p.color }} />
-                </div>
-              </div>
-              <div className="muted" style={{ fontSize: 13, marginTop: 10 }}>
-                Оценка {st?.estimateHours ?? 0} ч · факт {st?.spentHours ?? 0} ч · команда{' '}
-                {p.members?.length ?? 0}
-              </div>
-            </div>
-          );
-        })}
+      <div className="card">
+        <table>
+          <thead>
+            <tr>
+              <th>Код</th>
+              <th>Проект</th>
+              <th>Статус</th>
+              <th style={{ width: 160 }}>Задачи</th>
+              <th>Оценка / Факт</th>
+              <th>Команда</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {list.length === 0 && (
+              <tr>
+                <td colSpan={7} className="muted">
+                  Проектов пока нет.
+                </td>
+              </tr>
+            )}
+            {list.map((p) => {
+              const st = p.stats;
+              const pct = st && st.taskCount ? Math.round((st.doneCount / st.taskCount) * 100) : 0;
+              return (
+                <tr key={p.id}>
+                  <td>
+                    <span className="tag" style={{ background: p.color }}>
+                      {p.code}
+                    </span>
+                  </td>
+                  <td>
+                    <Link to={`/projects/${p.id}`}>{p.name}</Link>
+                    {p.description && (
+                      <div className="muted" style={{ fontSize: 11 }}>
+                        {p.description}
+                      </div>
+                    )}
+                  </td>
+                  <td>
+                    <span className="badge" style={{ background: PROJECT_STATUS_COLOR[p.status], color: '#fff' }}>
+                      {STATUS_LABEL[p.status]}
+                    </span>
+                  </td>
+                  <td>
+                    <div className="bar">
+                      <span style={{ width: `${pct}%`, background: p.color }} />
+                    </div>
+                    <small className="muted">
+                      {st?.doneCount ?? 0}/{st?.taskCount ?? 0} · {pct}%
+                    </small>
+                  </td>
+                  <td>
+                    {st?.estimateHours ?? 0} / {st?.spentHours ?? 0} ч
+                  </td>
+                  <td>{p.members?.length ?? 0}</td>
+                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    <Link to={`/projects/${p.id}`} className="icon-btn" title="Открыть">
+                      ↗
+                    </Link>
+                    <button className="icon-btn" title="Редактировать" onClick={() => setEdit(p)}>
+                      ✏️
+                    </button>
+                    <button className="icon-btn danger" title="Удалить" onClick={() => remove(p)}>
+                      🗑
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
 
       {edit && (

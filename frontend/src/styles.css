@@ -171,12 +171,21 @@ button.sm {
   height: 32px;
   padding: 0;
   border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--text);
+  cursor: pointer;
   font-size: 15px;
   line-height: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   margin-left: 4px;
+  text-decoration: none;
+  vertical-align: middle;
+}
+.icon-btn:hover {
+  background: #f8fafc;
 }
 .icon-btn.primary {
   background: var(--primary);
