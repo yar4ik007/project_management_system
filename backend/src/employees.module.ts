@@ -9,7 +9,6 @@ type EmployeeInput = {
   position?: string | null;
   weeklyHours?: number;
   active?: boolean;
-  notes?: string | null;
 };
 
 @Injectable()
@@ -42,9 +41,26 @@ export class EmployeesService {
     return this.prisma.employee.delete({ where: { id } });
   }
 
+  // Заметки сотрудника — отдельные записи
+  listNotes(employeeId: number) {
+    return this.prisma.note.findMany({ where: { employeeId }, orderBy: { createdAt: 'desc' } });
+  }
+
+  createNote(employeeId: number, text: string) {
+    return this.prisma.note.create({ data: { employeeId, text } });
+  }
+
+  updateNote(noteId: number, text: string) {
+    return this.prisma.note.update({ where: { id: noteId }, data: { text } });
+  }
+
+  removeNote(noteId: number) {
+    return this.prisma.note.delete({ where: { id: noteId } });
+  }
+
   private clean(data: Partial<EmployeeInput>): any {
     const out: Record<string, unknown> = {};
-    for (const k of ['name', 'email', 'role', 'position', 'weeklyHours', 'active', 'notes'] as const) {
+    for (const k of ['name', 'email', 'role', 'position', 'weeklyHours', 'active'] as const) {
       if (data[k] !== undefined) out[k] = data[k];
     }
     if (typeof out.weeklyHours === 'string') out.weeklyHours = Number(out.weeklyHours);
@@ -75,6 +91,22 @@ export class EmployeesController {
 
   @Delete(':id') remove(@Param('id', ParseIntPipe) id: number) {
     return this.svc.remove(id);
+  }
+
+  @Get(':id/notes') listNotes(@Param('id', ParseIntPipe) id: number) {
+    return this.svc.listNotes(id);
+  }
+
+  @Post(':id/notes') createNote(@Param('id', ParseIntPipe) id: number, @Body() body: { text: string }) {
+    return this.svc.createNote(id, body.text);
+  }
+
+  @Patch('notes/:noteId') updateNote(@Param('noteId', ParseIntPipe) noteId: number, @Body() body: { text: string }) {
+    return this.svc.updateNote(noteId, body.text);
+  }
+
+  @Delete('notes/:noteId') removeNote(@Param('noteId', ParseIntPipe) noteId: number) {
+    return this.svc.removeNote(noteId);
   }
 }
 

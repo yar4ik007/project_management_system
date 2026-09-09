@@ -1,6 +1,13 @@
-import { useEffect, useState } from 'react';
-import { api, Capacity, ROLE_LABEL } from '../api';
+import { useEffect, useRef, useState } from 'react';
+import { api, Capacity, Tracking, ROLE_LABEL } from '../api';
 import { fmtDate } from '../ui';
+
+function hms(sec: number) {
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = Math.floor(sec % 60);
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
 
 function utilColor(u: number) {
   if (u > 100) return '#ef4444';
@@ -12,6 +19,32 @@ function utilColor(u: number) {
 export default function Dashboard() {
   const [data, setData] = useState<Capacity | null>(null);
   const [weeks, setWeeks] = useState(4);
+  const [trackings, setTrackings] = useState<Tracking[]>([]);
+  const fetchedAt = useRef(Date.now());
+  const [, tick] = useState(0);
+
+  useEffect(() => {
+    const loadTr = () =>
+      api.tracking.active().then((t) => {
+        setTrackings(t);
+        fetchedAt.current = Date.now();
+      });
+    loadTr();
+    const p = setInterval(loadTr, 5000);
+    const t = setInterval(() => tick((n) => n + 1), 1000);
+    return () => {
+      clearInterval(p);
+      clearInterval(t);
+    };
+  }, []);
+
+  const liveNow = (t: Tracking) =>
+    t.state === 'RUNNING' ? t.liveSec + Math.floor((Date.now() - fetchedAt.current) / 1000) : t.liveSec;
+  const trAct = async (fn: 'pause' | 'stop' | 'start', t: Tracking) => {
+    await api.tracking[fn](t.taskId, t.employeeId);
+    setTrackings(await api.tracking.active());
+    fetchedAt.current = Date.now();
+  };
 
   const load = (w: number) => {
     const from = new Date();
@@ -31,7 +64,7 @@ export default function Dashboard() {
   return (
     <div>
       <div className="page-head">
-        <h2>Дашборд ресурсов</h2>
+        <h2>Дашборд</h2>
         <div className="row">
           <div>
             <label>Горизонт планирования</label>
@@ -72,6 +105,46 @@ export default function Dashboard() {
             {s.adequate ? '✓ Ресурсов хватает' : `⚠ Дефицит ${s.deficitHours} ч — нужны люди`}
           </div>
         </div>
+      </div>
+
+      <div className="card">
+        <h3>🟢 Сейчас в работе ({trackings.filter((t) => t.state === 'RUNNING').length})</h3>
+        {trackings.length === 0 && <p className="muted">Сейчас никто не трекает время.</p>}
+        {trackings.map((t) => (
+          <div
+            key={t.id}
+            className="flex-between"
+            style={{ padding: '8px 0', borderBottom: '1px solid var(--border)' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 18 }}>{t.state === 'RUNNING' ? '🟢' : '⏸'}</span>
+              <div>
+                <b>{t.employee?.name}</b>
+                <div className="muted" style={{ fontSize: 12 }}>
+                  <span className="tag" style={{ background: t.task?.project?.color }}>
+                    {t.task?.project?.code}
+                  </span>{' '}
+                  {t.task?.title}
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <span style={{ fontFamily: 'monospace', fontSize: 18, fontWeight: 700 }}>{hms(liveNow(t))}</span>
+              {t.state === 'RUNNING' ? (
+                <button className="sm" onClick={() => trAct('pause', t)}>
+                  ⏸
+                </button>
+              ) : (
+                <button className="sm primary" onClick={() => trAct('start', t)}>
+                  ▶️
+                </button>
+              )}
+              <button className="sm danger" onClick={() => trAct('stop', t)}>
+                ⏹
+              </button>
+            </div>
+          </div>
+        ))}
       </div>
 
       <div className="grid grid-2">

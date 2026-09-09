@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api, Assignment, Employee, Task, Tracking, ROLE_LABEL, TASK_STATUS_LABEL } from '../api';
+import { api, Assignment, Employee, Note, Task, Tracking, ROLE_LABEL, TASK_STATUS_LABEL } from '../api';
 import { useActingAs } from '../impersonation';
 import { TASK_STATUS_COLOR, fmtTime } from '../ui';
 
@@ -10,14 +10,11 @@ export default function Cabinet() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [trackings, setTrackings] = useState<Tracking[]>([]);
   const [plan, setPlan] = useState<Assignment[]>([]);
-  const [notes, setNotes] = useState('');
-  const [savedNote, setSavedNote] = useState(false);
 
   const load = async () => {
     if (!actingAs) return;
     const e = await api.employees.get(actingAs);
     setEmp(e);
-    setNotes(e.notes || '');
     setTasks((await api.tasks.list()).filter((t) => t.assigneeId === actingAs));
     setTrackings((await api.tracking.active()).filter((t) => t.employeeId === actingAs));
     const from = new Date();
@@ -46,12 +43,6 @@ export default function Cabinet() {
     await api.tracking[fn](t.id, emp.id);
     load();
   };
-  const saveNote = async () => {
-    await api.employees.update(emp.id, { notes });
-    setSavedNote(true);
-    setTimeout(() => setSavedNote(false), 1500);
-  };
-
   const open = tasks.filter((t) => t.status !== 'DONE');
 
   return (
@@ -113,16 +104,7 @@ export default function Cabinet() {
         </div>
 
         <div>
-          <div className="card">
-            <h3>📝 Моя заметочная</h3>
-            <textarea rows={6} value={notes} onChange={(e) => setNotes(e.target.value)} />
-            <div style={{ marginTop: 8 }}>
-              <button className="primary" onClick={saveNote}>
-                Сохранить
-              </button>{' '}
-              {savedNote && <span className="muted">✓ сохранено</span>}
-            </div>
-          </div>
+          <NotesBlock employeeId={emp.id} />
 
           <div className="card">
             <h3>Мой план (2 недели)</h3>
@@ -143,6 +125,93 @@ export default function Cabinet() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Заметки сотрудника: список отдельных записей — добавить / редактировать / удалить.
+export function NotesBlock({ employeeId }: { employeeId: number }) {
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [draft, setDraft] = useState('');
+  const [editId, setEditId] = useState<number | null>(null);
+  const [editText, setEditText] = useState('');
+
+  const load = () => api.employees.notes(employeeId).then(setNotes);
+  useEffect(() => {
+    load();
+  }, [employeeId]);
+
+  const add = async () => {
+    if (!draft.trim()) return;
+    await api.employees.addNote(employeeId, draft.trim());
+    setDraft('');
+    load();
+  };
+  const saveEdit = async () => {
+    if (editId == null) return;
+    await api.employees.updateNote(editId, editText);
+    setEditId(null);
+    load();
+  };
+  const del = async (id: number) => {
+    if (confirm('Удалить заметку?')) {
+      await api.employees.removeNote(id);
+      load();
+    }
+  };
+
+  return (
+    <div className="card">
+      <h3>📝 Заметки ({notes.length})</h3>
+      <div className="row" style={{ marginBottom: 12 }}>
+        <textarea
+          rows={2}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="Новая заметка…"
+          style={{ flex: 1 }}
+        />
+        <button className="primary" onClick={add}>
+          Добавить
+        </button>
+      </div>
+      {notes.length === 0 && <p className="muted">Заметок пока нет.</p>}
+      {notes.map((n) => (
+        <div key={n.id} style={{ padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+          {editId === n.id ? (
+            <div className="row">
+              <textarea rows={2} value={editText} onChange={(e) => setEditText(e.target.value)} style={{ flex: 1 }} />
+              <button className="primary sm" onClick={saveEdit}>
+                Сохранить
+              </button>
+              <button className="sm" onClick={() => setEditId(null)}>
+                Отмена
+              </button>
+            </div>
+          ) : (
+            <div className="flex-between">
+              <div style={{ whiteSpace: 'pre-wrap', flex: 1 }}>{n.text}</div>
+              <div style={{ whiteSpace: 'nowrap', marginLeft: 8 }}>
+                <button
+                  className="sm"
+                  onClick={() => {
+                    setEditId(n.id);
+                    setEditText(n.text);
+                  }}
+                >
+                  ✏️
+                </button>{' '}
+                <button className="sm danger" onClick={() => del(n.id)}>
+                  🗑
+                </button>
+              </div>
+            </div>
+          )}
+          <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>
+            {new Date(n.createdAt).toLocaleString('ru-RU')}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

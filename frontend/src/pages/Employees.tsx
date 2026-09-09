@@ -133,15 +133,6 @@ export default function Employees() {
               Активен
             </label>
           </div>
-          <div className="field">
-            <label>📝 Заметочная (личные заметки, видны и в боте)</label>
-            <textarea
-              rows={4}
-              value={edit.notes || ''}
-              onChange={(e) => setEdit({ ...edit, notes: e.target.value })}
-              placeholder="Заметки сотрудника…"
-            />
-          </div>
           <button className="primary" onClick={save}>
             Сохранить
           </button>

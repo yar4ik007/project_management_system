@@ -39,6 +39,43 @@ a {
   color: #fff;
   margin: 0 8px 20px;
 }
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 8px 20px;
+}
+.logo-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #3b82f6, #6366f1);
+  color: #fff;
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);
+}
+.logo-text {
+  display: flex;
+  flex-direction: column;
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 1.1;
+}
+.logo-text small {
+  color: #94a3b8;
+  font-weight: 500;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-top: 2px;
+}
 .sidebar nav a {
   display: block;
   padding: 10px 12px;

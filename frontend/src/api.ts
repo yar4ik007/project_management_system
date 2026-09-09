@@ -36,8 +36,15 @@ export interface Employee {
   weeklyHours: number;
   active: boolean;
   telegramUserId?: string | null;
-  notes?: string | null;
   members?: { project: Project }[];
+}
+
+export interface Note {
+  id: number;
+  employeeId: number;
+  text: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Project {
@@ -156,6 +163,12 @@ export const api = {
     update: (id: number, data: Partial<Employee>) =>
       req<Employee>(`/employees/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     remove: (id: number) => req<void>(`/employees/${id}`, { method: 'DELETE' }),
+    notes: (id: number) => req<Note[]>(`/employees/${id}/notes`),
+    addNote: (id: number, text: string) =>
+      req<Note>(`/employees/${id}/notes`, { method: 'POST', body: JSON.stringify({ text }) }),
+    updateNote: (noteId: number, text: string) =>
+      req<Note>(`/employees/notes/${noteId}`, { method: 'PATCH', body: JSON.stringify({ text }) }),
+    removeNote: (noteId: number) => req<void>(`/employees/notes/${noteId}`, { method: 'DELETE' }),
   },
   projects: {
     list: () => req<Project[]>('/projects'),

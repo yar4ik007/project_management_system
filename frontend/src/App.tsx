@@ -5,7 +5,6 @@ import Employees from './pages/Employees';
 import Projects from './pages/Projects';
 import ProjectDetail from './pages/ProjectDetail';
 import Calendar from './pages/Calendar';
-import Live from './pages/Live';
 import Cabinet from './pages/Cabinet';
 import { api, Employee } from './api';
 import { setActingAs, useActingAs } from './impersonation';
@@ -39,12 +38,17 @@ export default function App() {
   return (
     <div className="app">
       <aside className="sidebar">
-        <h1>📊 Управление проектами</h1>
+        <div className="logo">
+          <span className="logo-badge">EOB</span>
+          <span className="logo-text">
+            Eye Of Boss
+            <small>управление проектами</small>
+          </span>
+        </div>
         <nav>
           <NavLink to="/" end>
-            Дашборд ресурсов
+            Дашборд
           </NavLink>
-          <NavLink to="/live">🟢 Сейчас в работе</NavLink>
           <NavLink to="/calendar">Календарь планирования</NavLink>
           <NavLink to="/projects">Проекты</NavLink>
           <NavLink to="/employees">Сотрудники</NavLink>
@@ -55,7 +59,6 @@ export default function App() {
         <ImpersonationBanner />
         <Routes>
           <Route path="/" element={<Dashboard />} />
-          <Route path="/live" element={<Live />} />
           <Route path="/calendar" element={<Calendar />} />
           <Route path="/projects" element={<Projects />} />
           <Route path="/projects/:id" element={<ProjectDetail />} />

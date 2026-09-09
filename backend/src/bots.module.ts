@@ -103,20 +103,26 @@ export class BotsService implements OnModuleInit {
       if (emp) await this.sendTasks(ctx, projectId, emp.id);
     });
 
-    // Заметочная сотрудника
+    // Заметки сотрудника — список отдельных записей
     bot.callbackQuery('notes', async (ctx) => {
       const emp = await findEmployee(ctx.from?.id);
       await ctx.answerCallbackQuery();
       if (!emp) return;
-      const kb = new InlineKeyboard().text('✏️ Изменить', 'note_edit').text('⬅️ Задачи', 'tasks');
-      await ctx.reply(`📝 Ваша заметочная:\n\n${emp.notes || '(пусто)'}`, { reply_markup: kb });
+      await this.sendNotes(ctx, emp.id);
     });
-    bot.callbackQuery('note_edit', async (ctx) => {
+    bot.callbackQuery('note_add', async (ctx) => {
       const emp = await findEmployee(ctx.from?.id);
       await ctx.answerCallbackQuery();
       if (!emp) return;
       this.awaitingNote.set(ctx.from.id, emp.id);
-      await ctx.reply('Пришлите текст заметки одним сообщением (заменит текущую).');
+      await ctx.reply('Пришлите текст новой заметки одним сообщением.');
+    });
+    bot.callbackQuery(/^note_del:(\d+)$/, async (ctx) => {
+      const emp = await findEmployee(ctx.from?.id);
+      if (!emp) return ctx.answerCallbackQuery('Сначала /start');
+      await this.prisma.note.deleteMany({ where: { id: Number(ctx.match![1]), employeeId: emp.id } });
+      await ctx.answerCallbackQuery('Удалено');
+      await this.sendNotes(ctx, emp.id, true);
     });
 
     // Трекинг
@@ -135,15 +141,28 @@ export class BotsService implements OnModuleInit {
     bot.callbackQuery(/^pause:(\d+)$/, act('pause'));
     bot.callbackQuery(/^stop:(\d+)$/, act('stop'));
 
-    // Приём текста заметки (когда ждём ввод). Команды не трогаем.
+    // Приём текста новой заметки (когда ждём ввод). Команды не трогаем.
     bot.on('message:text', async (ctx, next) => {
       const empId = this.awaitingNote.get(ctx.from.id);
       if (!empId || ctx.message.text.startsWith('/')) return next();
       this.awaitingNote.delete(ctx.from.id);
-      await this.prisma.employee.update({ where: { id: empId }, data: { notes: ctx.message.text } });
-      await ctx.reply('📝 Заметка сохранена.');
-      await this.sendTasks(ctx, projectId, empId);
+      await this.prisma.note.create({ data: { employeeId: empId, text: ctx.message.text } });
+      await ctx.reply('📝 Заметка добавлена.');
+      await this.sendNotes(ctx, empId);
     });
+  }
+
+  private async sendNotes(ctx: any, employeeId: number, edit = false) {
+    const notes = await this.prisma.note.findMany({ where: { employeeId }, orderBy: { createdAt: 'desc' } });
+    const kb = new InlineKeyboard().text('➕ Добавить заметку', 'note_add').row();
+    notes.forEach((n) => kb.text(`🗑 ${n.text.slice(0, 20)}`, `note_del:${n.id}`).row());
+    kb.text('⬅️ Задачи', 'tasks');
+    const text = notes.length
+      ? '📝 Ваши заметки:\n\n' + notes.map((n, i) => `${i + 1}. ${n.text}`).join('\n')
+      : '📝 Заметок пока нет.';
+    return edit
+      ? ctx.editMessageText(text, { reply_markup: kb }).catch(() => {})
+      : ctx.reply(text, { reply_markup: kb });
   }
 
   // Список задач проекта, назначенных сотруднику, с кнопками трекинга.

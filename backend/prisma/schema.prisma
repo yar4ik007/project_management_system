@@ -55,7 +55,6 @@ model Employee {
   weeklyHours    Float        @default(40) // плановая ёмкость в неделю
   active         Boolean      @default(true)
   telegramUserId String?      @unique // id пользователя Telegram (привязка через бота)
-  notes          String? // личная заметочная сотрудника (правится в кабинете и в боте)
   createdAt      DateTime     @default(now())
 
   members     ProjectMember[]
@@ -64,6 +63,20 @@ model Employee {
   assignments Assignment[]
   absences    Absence[]
   trackings   TimeTracking[]
+  notes       Note[]
+}
+
+// Отдельная заметка сотрудника — своя запись, редактируется и удаляется независимо.
+model Note {
+  id         Int      @id @default(autoincrement())
+  employeeId Int
+  text       String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId, createdAt])
 }
 
 model Project {
