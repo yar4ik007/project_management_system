@@ -114,6 +114,17 @@ export default function Projects() {
               />
             </div>
           </div>
+          <div className="field">
+            <label>Telegram-бот: токен (BotFather)</label>
+            <input
+              value={edit.botToken || ''}
+              placeholder="123456:ABC-DEF..."
+              onChange={(e) => setEdit({ ...edit, botToken: e.target.value })}
+            />
+            <small className="muted">
+              Бот подхватит задачи и участников проекта; исполнители смогут трекать время из Telegram.
+            </small>
+          </div>
           <button className="primary" onClick={save}>
             Сохранить
           </button>

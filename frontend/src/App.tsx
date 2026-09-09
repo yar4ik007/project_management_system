@@ -4,6 +4,7 @@ import Employees from './pages/Employees';
 import Projects from './pages/Projects';
 import ProjectDetail from './pages/ProjectDetail';
 import Calendar from './pages/Calendar';
+import Live from './pages/Live';
 
 export default function App() {
   return (
@@ -14,6 +15,7 @@ export default function App() {
           <NavLink to="/" end>
             Дашборд ресурсов
           </NavLink>
+          <NavLink to="/live">🟢 Сейчас в работе</NavLink>
           <NavLink to="/calendar">Календарь планирования</NavLink>
           <NavLink to="/projects">Проекты</NavLink>
           <NavLink to="/employees">Сотрудники</NavLink>
@@ -22,6 +24,7 @@ export default function App() {
       <main className="main">
         <Routes>
           <Route path="/" element={<Dashboard />} />
+          <Route path="/live" element={<Live />} />
           <Route path="/calendar" element={<Calendar />} />
           <Route path="/projects" element={<Projects />} />
           <Route path="/projects/:id" element={<ProjectDetail />} />

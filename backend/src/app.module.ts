@@ -6,6 +6,8 @@ import { TasksModule } from './tasks.module';
 import { PlanningModule } from './planning.module';
 import { AbsencesModule } from './absences.module';
 import { DashboardModule } from './dashboard.module';
+import { TrackingModule } from './tracking.module';
+import { BotsModule } from './bots.module';
 
 @Module({
   imports: [
@@ -16,6 +18,8 @@ import { DashboardModule } from './dashboard.module';
     PlanningModule,
     AbsencesModule,
     DashboardModule,
+    TrackingModule,
+    BotsModule,
   ],
 })
 export class AppModule {}

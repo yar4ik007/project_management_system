@@ -7,6 +7,7 @@ import {
   Task,
   TaskPriority,
   TaskStatus,
+  Tracking,
   PRIORITY_LABEL,
   TASK_STATUS_LABEL,
 } from '../api';
@@ -21,15 +22,28 @@ export default function ProjectDetail() {
   const [taskEdit, setTaskEdit] = useState<Partial<Task> | null>(null);
   const [logFor, setLogFor] = useState<Task | null>(null);
   const [addMember, setAddMember] = useState(false);
+  const [trackings, setTrackings] = useState<Tracking[]>([]);
 
   const load = async () => {
     setProject(await api.projects.get(pid));
     setTasks(await api.tasks.list(pid));
+    setTrackings(await api.tracking.active());
   };
   useEffect(() => {
     load();
     api.employees.list().then(setEmployees);
   }, [pid]);
+
+  const trackerFor = (t: Task) =>
+    trackings.find((tr) => tr.taskId === t.id && tr.employeeId === t.assigneeId);
+  const track = async (fn: 'start' | 'pause' | 'stop', t: Task) => {
+    if (!t.assigneeId) {
+      alert('У задачи нет исполнителя — назначьте его, чтобы трекать время.');
+      return;
+    }
+    await api.tracking[fn](t.id, t.assigneeId);
+    load();
+  };
 
   if (!project) return <div>Загрузка…</div>;
 
@@ -59,7 +73,7 @@ export default function ProjectDetail() {
         </div>
         <button
           className="primary"
-          onClick={() => setTaskEdit({ status: 'TODO', priority: 'MEDIUM', estimateHours: 0, title: '' })}
+          onClick={() => setTaskEdit({ status: 'TODO', priority: 'MEDIUM', priorityRank: 100, estimateHours: 0, title: '' })}
         >
           + Задача
         </button>
@@ -124,7 +138,12 @@ export default function ProjectDetail() {
               const over = (t.spentHours || 0) > t.estimateHours && t.estimateHours > 0;
               return (
                 <tr key={t.id}>
-                  <td>{t.title}</td>
+                  <td>
+                    <span className="badge" title="Приоритет: меньше — важнее">
+                      P{t.priorityRank}
+                    </span>{' '}
+                    {t.title}
+                  </td>
                   <td>
                     <span className="tag" style={{ background: TASK_STATUS_COLOR[t.status] }}>
                       {TASK_STATUS_LABEL[t.status]}
@@ -145,6 +164,29 @@ export default function ProjectDetail() {
                     </small>
                   </td>
                   <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    {(() => {
+                      const tr = trackerFor(t);
+                      if (tr?.state === 'RUNNING')
+                        return (
+                          <>
+                            <button className="sm" title="Пауза" onClick={() => track('pause', t)}>
+                              ⏸
+                            </button>{' '}
+                            <button className="sm danger" title="Стоп (записать время)" onClick={() => track('stop', t)}>
+                              ⏹
+                            </button>{' '}
+                          </>
+                        );
+                      return (
+                        <button
+                          className="sm primary"
+                          title={tr ? 'Продолжить' : 'Старт трекинга'}
+                          onClick={() => track('start', t)}
+                        >
+                          ▶️
+                        </button>
+                      );
+                    })()}{' '}
                     <button className="sm" onClick={() => setLogFor(t)}>
                       ⏱ Лог
                     </button>{' '}
@@ -227,6 +269,14 @@ export default function ProjectDetail() {
                 onChange={(e) => setTaskEdit({ ...taskEdit, estimateHours: Number(e.target.value) })}
               />
             </div>
+          </div>
+          <div className="field" style={{ width: 200 }}>
+            <label>Приоритет № (меньше — важнее)</label>
+            <input
+              type="number"
+              value={taskEdit.priorityRank ?? 100}
+              onChange={(e) => setTaskEdit({ ...taskEdit, priorityRank: Number(e.target.value) })}
+            />
           </div>
           <div className="field">
             <label>Описание</label>

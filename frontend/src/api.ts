@@ -35,6 +35,7 @@ export interface Employee {
   position?: string | null;
   weeklyHours: number;
   active: boolean;
+  telegramUserId?: string | null;
   members?: { project: Project }[];
 }
 
@@ -47,6 +48,7 @@ export interface Project {
   color: string;
   startDate?: string | null;
   dueDate?: string | null;
+  botToken?: string | null;
   members?: { id: number; roleOnProject?: string | null; employee: Employee }[];
   stats?: { taskCount: number; doneCount: number; estimateHours: number; spentHours: number };
 }
@@ -58,6 +60,7 @@ export interface Task {
   description?: string | null;
   status: TaskStatus;
   priority: TaskPriority;
+  priorityRank: number;
   estimateHours: number;
   assigneeId?: number | null;
   assignee?: Employee | null;
@@ -96,6 +99,18 @@ export interface Absence {
   endDate: string;
   note?: string | null;
   employee?: Employee;
+}
+
+export interface Tracking {
+  id: number;
+  taskId: number;
+  employeeId: number;
+  state: 'RUNNING' | 'PAUSED';
+  startedAt?: string | null;
+  liveSec: number;
+  liveHours: number;
+  employee?: Employee;
+  task?: Task;
 }
 
 export interface Capacity {
@@ -180,6 +195,15 @@ export const api = {
     list: (from: string, to: string) => req<Absence[]>(`/absences?from=${from}&to=${to}`),
     create: (data: Partial<Absence>) => req<Absence>('/absences', { method: 'POST', body: JSON.stringify(data) }),
     remove: (id: number) => req<void>(`/absences/${id}`, { method: 'DELETE' }),
+  },
+  tracking: {
+    active: () => req<Tracking[]>('/tracking/active'),
+    start: (taskId: number, employeeId: number) =>
+      req<Tracking>('/tracking/start', { method: 'POST', body: JSON.stringify({ taskId, employeeId }) }),
+    pause: (taskId: number, employeeId: number) =>
+      req<Tracking>('/tracking/pause', { method: 'POST', body: JSON.stringify({ taskId, employeeId }) }),
+    stop: (taskId: number, employeeId: number) =>
+      req<{ loggedHours: number }>('/tracking/stop', { method: 'POST', body: JSON.stringify({ taskId, employeeId }) }),
   },
   dashboard: {
     capacity: (from?: string, to?: string) =>

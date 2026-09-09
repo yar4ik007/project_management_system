@@ -20,6 +20,7 @@ type TaskInput = {
   description?: string | null;
   status?: TaskStatus;
   priority?: TaskPriority;
+  priorityRank?: number;
   estimateHours?: number;
   assigneeId?: number | null;
   dueDate?: string | null;
@@ -38,7 +39,7 @@ export class TasksService {
   async list(projectId?: number, assigneeId?: number) {
     const tasks = await this.prisma.task.findMany({
       where: { projectId: projectId || undefined, assigneeId: assigneeId || undefined },
-      orderBy: [{ status: 'asc' }, { priority: 'desc' }, { createdAt: 'asc' }],
+      orderBy: [{ priorityRank: 'asc' }, { status: 'asc' }, { createdAt: 'asc' }],
       include: { assignee: true, project: true, timeLogs: { select: { hours: true } } },
     });
     return tasks.map(withSpent);
@@ -89,10 +90,11 @@ export class TasksService {
 
   private clean(data: Partial<TaskInput>): any {
     const out: Record<string, unknown> = {};
-    for (const k of ['projectId', 'title', 'description', 'status', 'priority', 'estimateHours', 'assigneeId'] as const) {
+    for (const k of ['projectId', 'title', 'description', 'status', 'priority', 'priorityRank', 'estimateHours', 'assigneeId'] as const) {
       if (data[k] !== undefined) out[k] = data[k];
     }
     if (out.projectId !== undefined) out.projectId = Number(out.projectId);
+    if (out.priorityRank !== undefined) out.priorityRank = Number(out.priorityRank);
     if (out.estimateHours !== undefined) out.estimateHours = Number(out.estimateHours);
     if (data.assigneeId !== undefined) out.assigneeId = data.assigneeId ? Number(data.assigneeId) : null;
     if (data.dueDate !== undefined) out.dueDate = data.dueDate ? new Date(data.dueDate) : null;

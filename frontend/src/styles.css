@@ -299,6 +299,16 @@ label {
   justify-content: space-between;
   align-items: center;
 }
+.toggle {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.toggle button {
+  border: none;
+  border-radius: 0;
+}
 .progress-wrap {
   margin-top: 6px;
 }

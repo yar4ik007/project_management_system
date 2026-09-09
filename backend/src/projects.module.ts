@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { ProjectStatus } from '@prisma/client';
 import { PrismaService } from './prisma.service';
+import { BotsModule, BotsService } from './bots.module';
 
 type ProjectInput = {
   name: string;
@@ -21,11 +22,15 @@ type ProjectInput = {
   color?: string;
   startDate?: string | null;
   dueDate?: string | null;
+  botToken?: string | null;
 };
 
 @Injectable()
 export class ProjectsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private bots: BotsService,
+  ) {}
 
   async list() {
     const projects = await this.prisma.project.findMany({
@@ -52,12 +57,17 @@ export class ProjectsService {
     });
   }
 
-  create(data: ProjectInput) {
-    return this.prisma.project.create({ data: this.clean(data) as any });
+  async create(data: ProjectInput) {
+    const p = await this.prisma.project.create({ data: this.clean(data) as any });
+    if (p.botToken) await this.bots.reload(p.id);
+    return p;
   }
 
-  update(id: number, data: Partial<ProjectInput>) {
-    return this.prisma.project.update({ where: { id }, data: this.clean(data) });
+  async update(id: number, data: Partial<ProjectInput>) {
+    const p = await this.prisma.project.update({ where: { id }, data: this.clean(data) });
+    // Токен мог измениться/очиститься — переподнимаем бота проекта.
+    if (data.botToken !== undefined) await this.bots.reload(id);
+    return p;
   }
 
   remove(id: number) {
@@ -83,6 +93,7 @@ export class ProjectsService {
     for (const k of ['name', 'code', 'description', 'status', 'color'] as const) {
       if (data[k] !== undefined) out[k] = data[k];
     }
+    if (data.botToken !== undefined) out.botToken = data.botToken ? data.botToken.trim() : null;
     if (data.startDate !== undefined) out.startDate = data.startDate ? new Date(data.startDate) : null;
     if (data.dueDate !== undefined) out.dueDate = data.dueDate ? new Date(data.dueDate) : null;
     return out;
@@ -128,5 +139,5 @@ export class ProjectsController {
   }
 }
 
-@Module({ controllers: [ProjectsController], providers: [ProjectsService, PrismaService] })
+@Module({ imports: [BotsModule], controllers: [ProjectsController], providers: [ProjectsService, PrismaService] })
 export class ProjectsModule {}
