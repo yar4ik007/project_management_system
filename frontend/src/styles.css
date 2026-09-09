@@ -415,4 +415,19 @@ label {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
+}
+.sidebar-profile {
+  color: #cbd5e1;
+  font-size: 13px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sidebar-profile:hover,
+.sidebar-profile.active {
+  background: #1e293b;
+  color: #fff;
 }

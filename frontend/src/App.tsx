@@ -6,6 +6,8 @@ import Projects from './pages/Projects';
 import ProjectDetail from './pages/ProjectDetail';
 import Calendar from './pages/Calendar';
 import Cabinet from './pages/Cabinet';
+import Notes from './pages/Notes';
+import Profile from './pages/Profile';
 import { api, Employee } from './api';
 import { setActingAs, useActingAs } from './impersonation';
 import { LoginPage, useAuth } from './auth';
@@ -55,14 +57,19 @@ function Sidebar({ isAdmin }: { isAdmin: boolean }) {
             <NavLink to="/calendar">Календарь планирования</NavLink>
             <NavLink to="/projects">Проекты</NavLink>
             <NavLink to="/employees">Сотрудники</NavLink>
-            <NavLink to="/me">👤 Кабинет сотрудника</NavLink>
+            <NavLink to="/notes">Заметки</NavLink>
           </>
         ) : (
-          <NavLink to="/me">👤 Мой кабинет</NavLink>
+          <>
+            <NavLink to="/me">Мои задачи</NavLink>
+            <NavLink to="/notes">Заметки</NavLink>
+          </>
         )}
       </nav>
       <div className="sidebar-user">
-        <div className="muted" style={{ fontSize: 12 }}>{user?.name}</div>
+        <NavLink to="/profile" className="sidebar-profile" title="Профиль">
+          👤 {user?.name}
+        </NavLink>
         <button className="sm" onClick={logout}>
           Выйти
         </button>
@@ -91,12 +98,16 @@ export default function App() {
             <Route path="/projects" element={<Projects />} />
             <Route path="/projects/:id" element={<ProjectDetail />} />
             <Route path="/employees" element={<Employees />} />
+            <Route path="/notes" element={<Notes />} />
+            <Route path="/profile" element={<Profile />} />
             <Route path="/me" element={<Cabinet />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         ) : (
           <Routes>
             <Route path="/me" element={<Cabinet />} />
+            <Route path="/notes" element={<Notes />} />
+            <Route path="/profile" element={<Profile />} />
             <Route path="*" element={<Navigate to="/me" />} />
           </Routes>
         )}

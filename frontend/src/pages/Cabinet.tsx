@@ -108,8 +108,6 @@ export default function Cabinet() {
         </div>
 
         <div>
-          <NotesBlock employeeId={emp.id} />
-
           <div className="card">
             <h3>Мой план (2 недели)</h3>
             {plan.length === 0 && <p className="muted">Слотов пока нет.</p>}

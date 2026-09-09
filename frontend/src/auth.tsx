@@ -5,7 +5,9 @@ import { setActingAs } from './impersonation';
 interface AuthCtx {
   user: Employee | null;
   loading: boolean;
-  login: (login: string, password: string) => Promise<void>;
+  login: (login: string, password: string) => Promise<string | null>;
+  verify2fa: (ticket: string, code: string) => Promise<void>;
+  setCurrentUser: (u: Employee) => void;
   logout: () => void;
 }
 
@@ -37,24 +39,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('auth-changed', h);
   }, []);
 
-  const login = async (l: string, p: string) => {
-    const { token, user } = await api.auth.login(l, p);
+  // Возвращает ticket, если требуется 2FA (иначе логинит сразу).
+  const login = async (l: string, p: string): Promise<string | null> => {
+    const res = await api.auth.login(l, p);
+    if (res.twoFactorRequired && res.ticket) return res.ticket;
+    setToken(res.token!);
+    setUser(res.user!);
+    return null;
+  };
+  const verify2fa = async (ticket: string, code: string) => {
+    const { token, user } = await api.auth.verify2fa(ticket, code);
     setToken(token);
     setUser(user);
   };
+  const setCurrentUser = (u: Employee) => setUser(u);
   const logout = () => {
     setToken(null);
     setActingAs(null);
     setUser(null);
   };
 
-  return <Ctx.Provider value={{ user, loading, login, logout }}>{children}</Ctx.Provider>;
+  return (
+    <Ctx.Provider value={{ user, loading, login, verify2fa, setCurrentUser, logout }}>{children}</Ctx.Provider>
+  );
 }
 
 export function LoginPage() {
-  const { login } = useAuth();
+  const { login, verify2fa } = useAuth();
   const [l, setL] = useState('');
   const [p, setP] = useState('');
+  const [ticket, setTicket] = useState<string | null>(null);
+  const [code, setCode] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -63,7 +78,12 @@ export function LoginPage() {
     setErr(null);
     setBusy(true);
     try {
-      await login(l.trim(), p);
+      if (ticket) {
+        await verify2fa(ticket, code.trim());
+      } else {
+        const t = await login(l.trim(), p);
+        if (t) setTicket(t); // требуется код 2FA
+      }
     } catch (e: any) {
       setErr(e.message || 'Ошибка входа');
     } finally {
@@ -82,17 +102,37 @@ export function LoginPage() {
           </div>
         </div>
         {err && <div className="alert">{err}</div>}
-        <div className="field">
-          <label>Логин</label>
-          <input value={l} onChange={(e) => setL(e.target.value)} autoFocus placeholder="логин" />
-        </div>
-        <div className="field">
-          <label>Пароль</label>
-          <input type="password" value={p} onChange={(e) => setP(e.target.value)} placeholder="пароль" />
-        </div>
-        <button className="primary" type="submit" disabled={busy} style={{ width: '100%' }}>
-          {busy ? 'Входим…' : 'Войти'}
-        </button>
+        {ticket ? (
+          <>
+            <div className="field">
+              <label>Код из приложения (2FA)</label>
+              <input
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                autoFocus
+                inputMode="numeric"
+                placeholder="6-значный код"
+              />
+            </div>
+            <button className="primary" type="submit" disabled={busy} style={{ width: '100%' }}>
+              {busy ? 'Проверяем…' : 'Подтвердить'}
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="field">
+              <label>Логин</label>
+              <input value={l} onChange={(e) => setL(e.target.value)} autoFocus placeholder="логин" />
+            </div>
+            <div className="field">
+              <label>Пароль</label>
+              <input type="password" value={p} onChange={(e) => setP(e.target.value)} placeholder="пароль" />
+            </div>
+            <button className="primary" type="submit" disabled={busy} style={{ width: '100%' }}>
+              {busy ? 'Входим…' : 'Войти'}
+            </button>
+          </>
+        )}
       </form>
     </div>
   );

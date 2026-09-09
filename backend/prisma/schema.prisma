@@ -55,11 +55,13 @@ model Employee {
   weeklyHours    Float        @default(40) // плановая ёмкость в неделю
   active         Boolean      @default(true)
   telegramUserId String?      @unique // id пользователя Telegram (привязка через бота)
-  login          String?      @unique // логин для входа
-  passwordHash   String? // bcrypt-хэш пароля
-  isAdmin        Boolean      @default(false) // полный доступ + управление пользователями
-  hidden         Boolean      @default(false) // системный супер-админ: скрыт в списках, неудаляем
-  createdAt      DateTime     @default(now())
+  login            String?    @unique // логин для входа
+  passwordHash     String? // bcrypt-хэш пароля
+  isAdmin          Boolean    @default(false) // полный доступ + управление пользователями
+  hidden           Boolean    @default(false) // системный супер-админ: скрыт в списках, неудаляем
+  twoFactorSecret  String? // секрет TOTP (2FA)
+  twoFactorEnabled Boolean    @default(false)
+  createdAt        DateTime   @default(now())
 
   members     ProjectMember[]
   tasks       Task[] // задачи, где сотрудник — исполнитель

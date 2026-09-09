@@ -54,6 +54,7 @@ export interface Employee {
   telegramUserId?: string | null;
   login?: string | null;
   isAdmin?: boolean;
+  twoFactorEnabled?: boolean;
   password?: string; // только для отправки при создании/смене
   members?: { project: Project }[];
 }
@@ -177,11 +178,23 @@ export interface Capacity {
 export const api = {
   auth: {
     login: (login: string, password: string) =>
-      req<{ token: string; user: Employee }>('/auth/login', {
+      req<{ token?: string; user?: Employee; twoFactorRequired?: boolean; ticket?: string }>('/auth/login', {
         method: 'POST',
         body: JSON.stringify({ login, password }),
       }),
+    verify2fa: (ticket: string, code: string) =>
+      req<{ token: string; user: Employee }>('/auth/2fa/verify', {
+        method: 'POST',
+        body: JSON.stringify({ ticket, code }),
+      }),
     me: () => req<Employee>('/auth/me'),
+    updateAccount: (data: { login?: string; currentPassword?: string; newPassword?: string }) =>
+      req<Employee>('/auth/account', { method: 'PATCH', body: JSON.stringify(data) }),
+    setup2fa: () => req<{ otpauth: string; qrDataUrl: string; secret: string }>('/auth/2fa/setup', { method: 'POST' }),
+    enable2fa: (code: string) =>
+      req<{ enabled: boolean }>('/auth/2fa/enable', { method: 'POST', body: JSON.stringify({ code }) }),
+    disable2fa: (code: string) =>
+      req<{ enabled: boolean }>('/auth/2fa/disable', { method: 'POST', body: JSON.stringify({ code }) }),
   },
   employees: {
     list: () => req<Employee[]>('/employees'),
