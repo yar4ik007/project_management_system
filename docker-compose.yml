@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: pms_postgres
+    environment:
+      POSTGRES_USER: pms
+      POSTGRES_PASSWORD: pms
+      POSTGRES_DB: pms
+    ports:
+      # 5434 на хосте, чтобы не конфликтовать с локальным Postgres (5432)
+      # и со стендом proc-matching (5433).
+      - "127.0.0.1:5434:5432"
+    volumes:
+      - pms_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pms -d pms"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pms_pgdata:
