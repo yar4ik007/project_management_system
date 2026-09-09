@@ -57,6 +57,24 @@ npm run dev
 > Порты: БД — `127.0.0.1:5434`, backend — `3002`, frontend — `5173`
 > (выбраны так, чтобы не конфликтовать с другими локальными стендами).
 
+- **Заметочная сотрудника** — личные заметки, правятся и в кабинете, и в боте (`/start` → 📝 Заметки).
+
+## Деплой на сервер (Docker + Caddy, авто-HTTPS)
+
+На сервере (Ubuntu, установлены Docker и git):
+
+```bash
+git clone https://github.com/yar4ik007/project_management_system.git
+cd project_management_system
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+- `Caddyfile` выпускает и продлевает TLS-сертификат для `eyeofboss.ru` автоматически
+  (нужно, чтобы A-запись домена указывала на сервер).
+- Backend на старте сам накатывает схему (`prisma db push`) и сеет демо-данные,
+  если БД пустая. Данные — в docker-томе `pms_pgdata`.
+- Обновление: `git pull && docker compose -f docker-compose.prod.yml up -d --build`.
+
 ## Структура
 
 ```

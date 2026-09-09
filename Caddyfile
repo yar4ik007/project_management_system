@@ -1,0 +1,4 @@
+eyeofboss.ru, www.eyeofboss.ru {
+	encode gzip
+	reverse_proxy frontend:80
+}

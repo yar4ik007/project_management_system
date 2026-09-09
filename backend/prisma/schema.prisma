@@ -55,6 +55,7 @@ model Employee {
   weeklyHours    Float        @default(40) // плановая ёмкость в неделю
   active         Boolean      @default(true)
   telegramUserId String?      @unique // id пользователя Telegram (привязка через бота)
+  notes          String? // личная заметочная сотрудника (правится в кабинете и в боте)
   createdAt      DateTime     @default(now())
 
   members     ProjectMember[]

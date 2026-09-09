@@ -36,6 +36,7 @@ export interface Employee {
   weeklyHours: number;
   active: boolean;
   telegramUserId?: string | null;
+  notes?: string | null;
   members?: { project: Project }[];
 }
 

@@ -9,6 +9,7 @@ type EmployeeInput = {
   position?: string | null;
   weeklyHours?: number;
   active?: boolean;
+  notes?: string | null;
 };
 
 @Injectable()
@@ -43,7 +44,7 @@ export class EmployeesService {
 
   private clean(data: Partial<EmployeeInput>): any {
     const out: Record<string, unknown> = {};
-    for (const k of ['name', 'email', 'role', 'position', 'weeklyHours', 'active'] as const) {
+    for (const k of ['name', 'email', 'role', 'position', 'weeklyHours', 'active', 'notes'] as const) {
       if (data[k] !== undefined) out[k] = data[k];
     }
     if (typeof out.weeklyHours === 'string') out.weeklyHours = Number(out.weeklyHours);

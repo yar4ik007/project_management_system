@@ -25,6 +25,7 @@ const STATUS_RU: Record<string, string> = {
 @Injectable()
 export class BotsService implements OnModuleInit {
   private bots = new Map<number, Bot>(); // projectId -> bot
+  private awaitingNote = new Map<number, number>(); // tgId -> employeeId (ждём текст заметки)
 
   constructor(
     private prisma: PrismaService,
@@ -102,6 +103,22 @@ export class BotsService implements OnModuleInit {
       if (emp) await this.sendTasks(ctx, projectId, emp.id);
     });
 
+    // Заметочная сотрудника
+    bot.callbackQuery('notes', async (ctx) => {
+      const emp = await findEmployee(ctx.from?.id);
+      await ctx.answerCallbackQuery();
+      if (!emp) return;
+      const kb = new InlineKeyboard().text('✏️ Изменить', 'note_edit').text('⬅️ Задачи', 'tasks');
+      await ctx.reply(`📝 Ваша заметочная:\n\n${emp.notes || '(пусто)'}`, { reply_markup: kb });
+    });
+    bot.callbackQuery('note_edit', async (ctx) => {
+      const emp = await findEmployee(ctx.from?.id);
+      await ctx.answerCallbackQuery();
+      if (!emp) return;
+      this.awaitingNote.set(ctx.from.id, emp.id);
+      await ctx.reply('Пришлите текст заметки одним сообщением (заменит текущую).');
+    });
+
     // Трекинг
     const act =
       (fn: 'start' | 'pause' | 'stop') =>
@@ -117,6 +134,16 @@ export class BotsService implements OnModuleInit {
     bot.callbackQuery(/^start:(\d+)$/, act('start'));
     bot.callbackQuery(/^pause:(\d+)$/, act('pause'));
     bot.callbackQuery(/^stop:(\d+)$/, act('stop'));
+
+    // Приём текста заметки (когда ждём ввод). Команды не трогаем.
+    bot.on('message:text', async (ctx, next) => {
+      const empId = this.awaitingNote.get(ctx.from.id);
+      if (!empId || ctx.message.text.startsWith('/')) return next();
+      this.awaitingNote.delete(ctx.from.id);
+      await this.prisma.employee.update({ where: { id: empId }, data: { notes: ctx.message.text } });
+      await ctx.reply('📝 Заметка сохранена.');
+      await this.sendTasks(ctx, projectId, empId);
+    });
   }
 
   // Список задач проекта, назначенных сотруднику, с кнопками трекинга.
@@ -130,7 +157,10 @@ export class BotsService implements OnModuleInit {
 
     if (!tasks.length) {
       const text = `📋 ${project?.name}\n\nНа вас нет открытых задач.`;
-      return edit ? ctx.editMessageText(text).catch(() => {}) : ctx.reply(text);
+      const kb = new InlineKeyboard().text('🔄 Обновить', 'tasks').text('📝 Заметки', 'notes');
+      return edit
+        ? ctx.editMessageText(text, { reply_markup: kb }).catch(() => {})
+        : ctx.reply(text, { reply_markup: kb });
     }
 
     const kb = new InlineKeyboard();
@@ -154,7 +184,7 @@ export class BotsService implements OnModuleInit {
         kb.text(`▶️ ${t.id} ${t.title.slice(0, 18)}`, `start:${t.id}`).row();
       }
     }
-    kb.text('🔄 Обновить', 'tasks');
+    kb.text('🔄 Обновить', 'tasks').text('📝 Заметки', 'notes');
     const text = lines.join('\n');
     if (edit) return ctx.editMessageText(text, { reply_markup: kb }).catch(() => {});
     return ctx.reply(text, { reply_markup: kb });
