@@ -1,4 +1,15 @@
-eyeofboss.ru, www.eyeofboss.ru {
+# Домен eyeofboss.ru пока не прошёл идентификацию у регистратора и не резолвится,
+# поэтому Let's Encrypt (авто-HTTPS) выпустить сертификат не сможет. Отдаём по HTTP
+# на любой хост (IP и домен) — приложение доступно сразу.
+#
+# КОГДА ДОМЕН ЗАРАБОТАЕТ (резолвится на сервер) — заменить блок ниже на:
+#   eyeofboss.ru, www.eyeofboss.ru {
+#     encode gzip
+#     reverse_proxy frontend:80
+#   }
+# Caddy сам выпустит и будет продлевать TLS-сертификат.
+
+:80 {
 	encode gzip
 	reverse_proxy frontend:80
 }
