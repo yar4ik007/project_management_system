@@ -128,6 +128,7 @@ export default function ProjectDetail() {
               <th>Статус</th>
               <th>Приоритет</th>
               <th>Исполнитель</th>
+              <th>Автор</th>
               <th>Прогресс (факт/оценка)</th>
               <th></th>
             </tr>
@@ -155,6 +156,7 @@ export default function ProjectDetail() {
                     </span>
                   </td>
                   <td>{t.assignee?.name || <span className="muted">—</span>}</td>
+                  <td>{t.creator?.name || <span className="muted">—</span>}</td>
                   <td style={{ minWidth: 160 }}>
                     <div className="bar">
                       <span style={{ width: `${pct}%`, background: over ? 'var(--danger)' : 'var(--primary)' }} />

@@ -77,6 +77,7 @@ export interface Project {
   startDate?: string | null;
   dueDate?: string | null;
   botToken?: string | null;
+  botUsername?: string | null;
   members?: { id: number; roleOnProject?: string | null; employee: Employee }[];
   stats?: { taskCount: number; doneCount: number; estimateHours: number; spentHours: number };
 }
@@ -92,6 +93,8 @@ export interface Task {
   estimateHours: number;
   assigneeId?: number | null;
   assignee?: Employee | null;
+  createdById?: number | null;
+  creator?: Employee | null;
   project?: Project;
   dueDate?: string | null;
   spentHours?: number;
@@ -221,6 +224,11 @@ export const api = {
       req(`/projects/${id}/members`, { method: 'POST', body: JSON.stringify({ employeeId, roleOnProject }) }),
     removeMember: (id: number, employeeId: number) =>
       req(`/projects/${id}/members/${employeeId}`, { method: 'DELETE' }),
+    resolveBot: (token: string) =>
+      req<{ username: string | null; error?: string }>('/projects/bot-username', {
+        method: 'POST',
+        body: JSON.stringify({ token }),
+      }),
   },
   tasks: {
     list: (projectId?: number) => req<Task[]>(`/tasks${projectId ? `?projectId=${projectId}` : ''}`),

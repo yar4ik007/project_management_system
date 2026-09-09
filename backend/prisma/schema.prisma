@@ -63,9 +63,10 @@ model Employee {
   twoFactorEnabled Boolean    @default(false)
   createdAt        DateTime   @default(now())
 
-  members     ProjectMember[]
-  tasks       Task[] // задачи, где сотрудник — исполнитель
-  timeLogs    TimeLog[]
+  members      ProjectMember[]
+  tasks        Task[]          @relation("assignee") // задачи, где сотрудник — исполнитель
+  createdTasks Task[]          @relation("createdBy") // задачи, которые сотрудник создал
+  timeLogs     TimeLog[]
   assignments Assignment[]
   absences    Absence[]
   trackings   TimeTracking[]
@@ -95,6 +96,7 @@ model Project {
   startDate   DateTime?
   dueDate     DateTime?
   botToken    String? // токен Telegram-бота проекта (бот подхватывает задачи/сотрудников)
+  botUsername String? // @username бота (определяется по токену через getMe)
   createdAt   DateTime      @default(now())
 
   members ProjectMember[]
@@ -125,11 +127,13 @@ model Task {
   priorityRank  Int          @default(100) // числовой приоритет: чем меньше, тем важнее
   estimateHours Float        @default(0) // оценка трудоёмкости
   assigneeId    Int? // исполнитель
+  createdById   Int? // кто создал задачу
   dueDate       DateTime?
   createdAt     DateTime     @default(now())
 
   project     Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  assignee    Employee?      @relation(fields: [assigneeId], references: [id], onDelete: SetNull)
+  assignee    Employee?      @relation("assignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  creator     Employee?      @relation("createdBy", fields: [createdById], references: [id], onDelete: SetNull)
   timeLogs    TimeLog[]
   assignments Assignment[]
   trackings   TimeTracking[]

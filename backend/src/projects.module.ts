@@ -89,6 +89,19 @@ export class ProjectsService {
     });
   }
 
+  // Определить @username бота по токену (Telegram getMe) — для показа в форме.
+  async resolveBotUsername(token: string): Promise<{ username: string | null; error?: string }> {
+    if (!token || !token.trim()) return { username: null };
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${token.trim()}/getMe`);
+      const data: any = await res.json();
+      if (data.ok) return { username: data.result.username };
+      return { username: null, error: data.description || 'неверный токен' };
+    } catch {
+      return { username: null, error: 'нет связи с Telegram' };
+    }
+  }
+
   private clean(data: Partial<ProjectInput>): any {
     const out: Record<string, unknown> = {};
     for (const k of ['name', 'code', 'description', 'status', 'color'] as const) {
@@ -124,6 +137,10 @@ export class ProjectsController {
 
   @Delete(':id') remove(@Param('id', ParseIntPipe) id: number) {
     return this.svc.remove(id);
+  }
+
+  @Post('bot-username') resolveBot(@Body() body: { token: string }) {
+    return this.svc.resolveBotUsername(body.token);
   }
 
   @Post(':id/members') addMember(

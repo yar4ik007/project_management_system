@@ -8,6 +8,26 @@ const EMPTY: Partial<Project> = { name: '', code: '', status: 'PLANNED', color: 
 export default function Projects() {
   const [list, setList] = useState<Project[]>([]);
   const [edit, setEdit] = useState<Partial<Project> | null>(null);
+  const [botInfo, setBotInfo] = useState<{ username?: string | null; error?: string; loading?: boolean }>({});
+
+  // Определяем @username бота по введённому токену (с задержкой).
+  useEffect(() => {
+    const t = (edit?.botToken || '').trim();
+    if (!t) {
+      setBotInfo({});
+      return;
+    }
+    setBotInfo({ loading: true });
+    const h = setTimeout(async () => {
+      try {
+        const r = await api.projects.resolveBot(t);
+        setBotInfo({ username: r.username, error: r.error });
+      } catch {
+        setBotInfo({ error: 'ошибка проверки' });
+      }
+    }, 600);
+    return () => clearTimeout(h);
+  }, [edit?.botToken]);
 
   const load = () => api.projects.list().then(setList);
   useEffect(() => {
@@ -70,6 +90,17 @@ export default function Projects() {
                   </td>
                   <td>
                     <Link to={`/projects/${p.id}`}>{p.name}</Link>
+                    {p.botUsername && (
+                      <a
+                        href={`https://t.me/${p.botUsername}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="muted"
+                        style={{ fontSize: 11, display: 'block' }}
+                      >
+                        🤖 @{p.botUsername}
+                      </a>
+                    )}
                     {p.description && (
                       <div className="muted" style={{ fontSize: 11 }}>
                         {p.description}
@@ -161,7 +192,18 @@ export default function Projects() {
               placeholder="123456:ABC-DEF..."
               onChange={(e) => setEdit({ ...edit, botToken: e.target.value })}
             />
-            <small className="muted">
+            {edit.botToken && edit.botToken.trim() && (
+              <div style={{ fontSize: 12, marginTop: 4 }}>
+                {botInfo.loading ? (
+                  <span className="muted">проверяем токен…</span>
+                ) : botInfo.username ? (
+                  <span style={{ color: 'var(--ok)' }}>🤖 бот: @{botInfo.username}</span>
+                ) : botInfo.error ? (
+                  <span style={{ color: 'var(--danger)' }}>✕ {botInfo.error}</span>
+                ) : null}
+              </div>
+            )}
+            <small className="muted" style={{ display: 'block', marginTop: 4 }}>
               Бот подхватит задачи и участников проекта; исполнители смогут трекать время из Telegram.
             </small>
           </div>

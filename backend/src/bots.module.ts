@@ -42,6 +42,7 @@ export class BotsService implements OnModuleInit {
     await this.stop(projectId);
     const p = await this.prisma.project.findUnique({ where: { id: projectId } });
     if (p?.botToken) this.launch(projectId, p.botToken);
+    else await this.prisma.project.update({ where: { id: projectId }, data: { botUsername: null } }).catch(() => {});
   }
 
   private async stop(projectId: number) {
@@ -61,9 +62,15 @@ export class BotsService implements OnModuleInit {
     this.wire(bot, projectId);
     bot.catch((err) => console.warn(`[bot ${projectId}] ошибка:`, err.message));
     // start() крутит long-polling бесконечно; не ждём. Невалидный токен ловим в catch.
-    bot.start({ onStart: (me) => console.log(`[bot ${projectId}] @${me.username} запущен`) }).catch((e) =>
-      console.warn(`[bot ${projectId}] не запустился: ${e.message}`),
-    );
+    bot
+      .start({
+        onStart: (me) => {
+          console.log(`[bot ${projectId}] @${me.username} запущен`);
+          // Запоминаем @username бота на проекте (для показа в интерфейсе).
+          this.prisma.project.update({ where: { id: projectId }, data: { botUsername: me.username } }).catch(() => {});
+        },
+      })
+      .catch((e) => console.warn(`[bot ${projectId}] не запустился: ${e.message}`));
     this.bots.set(projectId, bot);
   }
 

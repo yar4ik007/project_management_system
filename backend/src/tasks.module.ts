@@ -10,6 +10,7 @@ import {
   Patch,
   Post,
   Query,
+  Req,
 } from '@nestjs/common';
 import { TaskPriority, TaskStatus } from '@prisma/client';
 import { PrismaService } from './prisma.service';
@@ -24,6 +25,7 @@ type TaskInput = {
   priorityRank?: number;
   estimateHours?: number;
   assigneeId?: number | null;
+  createdById?: number | null;
   dueDate?: string | null;
 };
 
@@ -41,7 +43,7 @@ export class TasksService {
     const tasks = await this.prisma.task.findMany({
       where: { projectId: projectId || undefined, assigneeId: assigneeId || undefined },
       orderBy: [{ priorityRank: 'asc' }, { status: 'asc' }, { createdAt: 'asc' }],
-      include: { assignee: true, project: true, timeLogs: { select: { hours: true } } },
+      include: { assignee: true, creator: true, project: true, timeLogs: { select: { hours: true } } },
     });
     return tasks.map(withSpent);
   }
@@ -51,6 +53,7 @@ export class TasksService {
       where: { id },
       include: {
         assignee: true,
+        creator: true,
         project: true,
         timeLogs: { include: { employee: true }, orderBy: { date: 'desc' } },
       },
@@ -98,6 +101,7 @@ export class TasksService {
     if (out.priorityRank !== undefined) out.priorityRank = Number(out.priorityRank);
     if (out.estimateHours !== undefined) out.estimateHours = Number(out.estimateHours);
     if (data.assigneeId !== undefined) out.assigneeId = data.assigneeId ? Number(data.assigneeId) : null;
+    if (data.createdById !== undefined) out.createdById = data.createdById ? Number(data.createdById) : null;
     if (data.dueDate !== undefined) out.dueDate = data.dueDate ? new Date(data.dueDate) : null;
     return out;
   }
@@ -115,8 +119,8 @@ export class TasksController {
     return this.svc.get(id);
   }
 
-  @Admin() @Post() create(@Body() body: TaskInput) {
-    return this.svc.create(body);
+  @Admin() @Post() create(@Body() body: TaskInput, @Req() req: any) {
+    return this.svc.create({ ...body, createdById: req.user?.sub });
   }
 
   @Admin() @Patch(':id') update(@Param('id', ParseIntPipe) id: number, @Body() body: Partial<TaskInput>) {
