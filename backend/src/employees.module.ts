@@ -1,6 +1,20 @@
-import { Body, Controller, Delete, Get, Injectable, Module, Param, ParseIntPipe, Patch, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  ForbiddenException,
+  Get,
+  Injectable,
+  Module,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+} from '@nestjs/common';
 import { EmployeeRole } from '@prisma/client';
+import * as bcrypt from 'bcryptjs';
 import { PrismaService } from './prisma.service';
+import { Admin } from './auth.module';
 
 type EmployeeInput = {
   name: string;
@@ -9,6 +23,9 @@ type EmployeeInput = {
   position?: string | null;
   weeklyHours?: number;
   active?: boolean;
+  login?: string | null;
+  password?: string;
+  isAdmin?: boolean;
 };
 
 @Injectable()
@@ -17,6 +34,7 @@ export class EmployeesService {
 
   list() {
     return this.prisma.employee.findMany({
+      where: { hidden: false }, // системный супер-админ не виден
       orderBy: [{ active: 'desc' }, { name: 'asc' }],
       include: { members: { include: { project: true } } },
     });
@@ -37,7 +55,9 @@ export class EmployeesService {
     return this.prisma.employee.update({ where: { id }, data: this.clean(data) });
   }
 
-  remove(id: number) {
+  async remove(id: number) {
+    const emp = await this.prisma.employee.findUnique({ where: { id } });
+    if (emp?.hidden) throw new ForbiddenException('Системного администратора нельзя удалить');
     return this.prisma.employee.delete({ where: { id } });
   }
 
@@ -60,11 +80,13 @@ export class EmployeesService {
 
   private clean(data: Partial<EmployeeInput>): any {
     const out: Record<string, unknown> = {};
-    for (const k of ['name', 'email', 'role', 'position', 'weeklyHours', 'active'] as const) {
+    for (const k of ['name', 'email', 'role', 'position', 'weeklyHours', 'active', 'login', 'isAdmin'] as const) {
       if (data[k] !== undefined) out[k] = data[k];
     }
     if (typeof out.weeklyHours === 'string') out.weeklyHours = Number(out.weeklyHours);
     if (out.email === '') out.email = null;
+    if (out.login === '') out.login = null;
+    if (data.password) out.passwordHash = bcrypt.hashSync(data.password, 10);
     return out;
   }
 }
@@ -73,23 +95,23 @@ export class EmployeesService {
 export class EmployeesController {
   constructor(private svc: EmployeesService) {}
 
-  @Get() list() {
+  @Admin() @Get() list() {
     return this.svc.list();
   }
 
-  @Get(':id') get(@Param('id', ParseIntPipe) id: number) {
+  @Admin() @Get(':id') get(@Param('id', ParseIntPipe) id: number) {
     return this.svc.get(id);
   }
 
-  @Post() create(@Body() body: EmployeeInput) {
+  @Admin() @Post() create(@Body() body: EmployeeInput) {
     return this.svc.create(body);
   }
 
-  @Patch(':id') update(@Param('id', ParseIntPipe) id: number, @Body() body: Partial<EmployeeInput>) {
+  @Admin() @Patch(':id') update(@Param('id', ParseIntPipe) id: number, @Body() body: Partial<EmployeeInput>) {
     return this.svc.update(id, body);
   }
 
-  @Delete(':id') remove(@Param('id', ParseIntPipe) id: number) {
+  @Admin() @Delete(':id') remove(@Param('id', ParseIntPipe) id: number) {
     return this.svc.remove(id);
   }
 

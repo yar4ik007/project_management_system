@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { AbsenceType } from '@prisma/client';
 import { PrismaService } from './prisma.service';
+import { Admin } from './auth.module';
 
 type AbsenceInput = {
   employeeId: number;
@@ -60,11 +61,11 @@ export class AbsencesController {
     return this.svc.list(from, to);
   }
 
-  @Post() create(@Body() body: AbsenceInput) {
+  @Admin() @Post() create(@Body() body: AbsenceInput) {
     return this.svc.create(body);
   }
 
-  @Delete(':id') remove(@Param('id', ParseIntPipe) id: number) {
+  @Admin() @Delete(':id') remove(@Param('id', ParseIntPipe) id: number) {
     return this.svc.remove(id);
   }
 }

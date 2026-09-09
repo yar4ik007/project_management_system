@@ -2,38 +2,42 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, Assignment, Employee, Note, Task, Tracking, ROLE_LABEL, TASK_STATUS_LABEL } from '../api';
 import { useActingAs } from '../impersonation';
+import { useAuth } from '../auth';
 import { TASK_STATUS_COLOR, fmtTime } from '../ui';
 
 export default function Cabinet() {
   const actingAs = useActingAs();
+  const { user } = useAuth();
+  const effectiveId = actingAs ?? user?.id ?? null;
   const [emp, setEmp] = useState<Employee | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [trackings, setTrackings] = useState<Tracking[]>([]);
   const [plan, setPlan] = useState<Assignment[]>([]);
 
   const load = async () => {
-    if (!actingAs) return;
-    const e = await api.employees.get(actingAs);
+    if (!effectiveId) return;
+    // Админ смотрит чужой кабинет (actingAs) — тянем сотрудника; сам себя — берём из профиля.
+    const e = actingAs ? await api.employees.get(actingAs) : user!;
     setEmp(e);
-    setTasks((await api.tasks.list()).filter((t) => t.assigneeId === actingAs));
-    setTrackings((await api.tracking.active()).filter((t) => t.employeeId === actingAs));
+    setTasks((await api.tasks.list()).filter((t) => t.assigneeId === effectiveId));
+    setTrackings((await api.tracking.active()).filter((t) => t.employeeId === effectiveId));
     const from = new Date();
     from.setHours(0, 0, 0, 0);
     const to = new Date(from.getTime() + 14 * 864e5);
-    setPlan((await api.assignments.list(from.toISOString(), to.toISOString(), actingAs)));
+    setPlan(await api.assignments.list(from.toISOString(), to.toISOString(), effectiveId));
   };
 
   useEffect(() => {
     load();
-  }, [actingAs]);
+  }, [effectiveId]);
 
-  if (!actingAs || !emp)
+  if (!effectiveId || !emp)
     return (
       <div className="card">
         <h3>Кабинет сотрудника</h3>
         <p className="muted">
-          Откройте <Link to="/employees">Сотрудники</Link> и нажмите «👁 Войти» напротив нужного человека — увидите
-          систему его глазами.
+          Откройте <Link to="/employees">Сотрудники</Link> и нажмите «👁» напротив нужного человека — увидите систему
+          его глазами.
         </p>
       </div>
     );

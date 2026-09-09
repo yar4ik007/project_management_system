@@ -13,6 +13,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
+import { Admin } from './auth.module';
 
 type AssignmentInput = {
   employeeId: number;
@@ -144,11 +145,11 @@ export class PlanningController {
     return this.svc.preview(Number(employeeId), startAt, endAt, ignoreId ? Number(ignoreId) : undefined);
   }
 
-  @Post() create(@Body() body: AssignmentInput, @Query('force') force?: string) {
+  @Admin() @Post() create(@Body() body: AssignmentInput, @Query('force') force?: string) {
     return this.svc.create(body, force === 'true');
   }
 
-  @Patch(':id') update(
+  @Admin() @Patch(':id') update(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: Partial<AssignmentInput>,
     @Query('force') force?: string,
@@ -156,7 +157,7 @@ export class PlanningController {
     return this.svc.update(id, body, force === 'true');
   }
 
-  @Delete(':id') remove(@Param('id', ParseIntPipe) id: number) {
+  @Admin() @Delete(':id') remove(@Param('id', ParseIntPipe) id: number) {
     return this.svc.remove(id);
   }
 }

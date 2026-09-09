@@ -4,7 +4,15 @@ import { api, Employee, Role, ROLE_LABEL } from '../api';
 import { Modal } from '../ui';
 import { setActingAs } from '../impersonation';
 
-const EMPTY: Partial<Employee> = { name: '', role: 'DEVELOPER', weeklyHours: 40, active: true, position: '' };
+const EMPTY: Partial<Employee> = {
+  name: '',
+  role: 'DEVELOPER',
+  weeklyHours: 40,
+  active: true,
+  position: '',
+  login: '',
+  isAdmin: false,
+};
 
 export default function Employees() {
   const [list, setList] = useState<Employee[]>([]);
@@ -56,7 +64,10 @@ export default function Employees() {
           <tbody>
             {list.map((e) => (
               <tr key={e.id}>
-                <td>{e.name}</td>
+                <td>
+                  {e.name} {e.isAdmin && <span title="Администратор">⭐</span>}
+                  {e.login && <div className="muted" style={{ fontSize: 11 }}>@{e.login}</div>}
+                </td>
                 <td>
                   <span className="badge">{ROLE_LABEL[e.role]}</span>
                 </td>
@@ -66,20 +77,20 @@ export default function Employees() {
                 <td>{e.active ? '✓ активен' : <span className="muted">неактивен</span>}</td>
                 <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                   <button
-                    className="sm primary"
+                    className="icon-btn primary"
                     title="Войти и смотреть его глазами"
                     onClick={() => {
                       setActingAs(e.id);
                       nav('/me');
                     }}
                   >
-                    👁 Войти
-                  </button>{' '}
-                  <button className="sm" onClick={() => setEdit(e)}>
-                    Изм.
-                  </button>{' '}
-                  <button className="sm danger" onClick={() => remove(e.id)}>
-                    Удал.
+                    👁
+                  </button>
+                  <button className="icon-btn" title="Редактировать" onClick={() => setEdit(e)}>
+                    ✏️
+                  </button>
+                  <button className="icon-btn danger" title="Удалить" onClick={() => remove(e.id)}>
+                    🗑
                   </button>
                 </td>
               </tr>
@@ -133,6 +144,40 @@ export default function Employees() {
               Активен
             </label>
           </div>
+
+          <div className="card" style={{ background: '#f8fafc', margin: 0, marginBottom: 12 }}>
+            <div className="row">
+              <div className="field" style={{ flex: 1 }}>
+                <label>Логин для входа</label>
+                <input
+                  value={edit.login || ''}
+                  onChange={(e) => setEdit({ ...edit, login: e.target.value })}
+                  placeholder="напр. anna"
+                />
+              </div>
+              <div className="field" style={{ flex: 1 }}>
+                <label>Пароль {edit.id ? '(пусто — не менять)' : ''}</label>
+                <input
+                  type="password"
+                  value={edit.password || ''}
+                  onChange={(e) => setEdit({ ...edit, password: e.target.value })}
+                  placeholder="пароль"
+                />
+              </div>
+            </div>
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={edit.isAdmin ?? false}
+                  onChange={(e) => setEdit({ ...edit, isAdmin: e.target.checked })}
+                  style={{ width: 'auto', marginRight: 6 }}
+                />
+                Администратор (полный доступ, управление пользователями)
+              </label>
+            </div>
+          </div>
+
           <button className="primary" onClick={save}>
             Сохранить
           </button>

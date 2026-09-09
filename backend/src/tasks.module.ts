@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { TaskPriority, TaskStatus } from '@prisma/client';
 import { PrismaService } from './prisma.service';
+import { Admin } from './auth.module';
 
 type TaskInput = {
   projectId: number;
@@ -114,26 +115,26 @@ export class TasksController {
     return this.svc.get(id);
   }
 
-  @Post() create(@Body() body: TaskInput) {
+  @Admin() @Post() create(@Body() body: TaskInput) {
     return this.svc.create(body);
   }
 
-  @Patch(':id') update(@Param('id', ParseIntPipe) id: number, @Body() body: Partial<TaskInput>) {
+  @Admin() @Patch(':id') update(@Param('id', ParseIntPipe) id: number, @Body() body: Partial<TaskInput>) {
     return this.svc.update(id, body);
   }
 
-  @Delete(':id') remove(@Param('id', ParseIntPipe) id: number) {
+  @Admin() @Delete(':id') remove(@Param('id', ParseIntPipe) id: number) {
     return this.svc.remove(id);
   }
 
-  @Post(':id/logs') addLog(
+  @Admin() @Post(':id/logs') addLog(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: { employeeId: number; hours: number; date?: string; note?: string },
   ) {
     return this.svc.addLog(id, body);
   }
 
-  @Delete('logs/:logId') removeLog(@Param('logId', ParseIntPipe) logId: number) {
+  @Admin() @Delete('logs/:logId') removeLog(@Param('logId', ParseIntPipe) logId: number) {
     return this.svc.removeLog(logId);
   }
 }

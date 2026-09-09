@@ -1,10 +1,26 @@
 const BASE = '/api';
 
+const TOKEN_KEY = 'pms_token';
+export const getToken = () => localStorage.getItem(TOKEN_KEY);
+export const setToken = (t: string | null) => {
+  if (t) localStorage.setItem(TOKEN_KEY, t);
+  else localStorage.removeItem(TOKEN_KEY);
+};
+
 async function req<T>(path: string, opts: RequestInit = {}): Promise<T> {
+  const token = getToken();
   const res = await fetch(BASE + path, {
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     ...opts,
   });
+  if (res.status === 401) {
+    // Сессия истекла/невалидна — сбрасываем и показываем вход.
+    setToken(null);
+    window.dispatchEvent(new Event('auth-changed'));
+  }
   if (!res.ok) {
     let body: any = null;
     try {
@@ -36,6 +52,9 @@ export interface Employee {
   weeklyHours: number;
   active: boolean;
   telegramUserId?: string | null;
+  login?: string | null;
+  isAdmin?: boolean;
+  password?: string; // только для отправки при создании/смене
   members?: { project: Project }[];
 }
 
@@ -156,6 +175,14 @@ export interface Capacity {
 }
 
 export const api = {
+  auth: {
+    login: (login: string, password: string) =>
+      req<{ token: string; user: Employee }>('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ login, password }),
+      }),
+    me: () => req<Employee>('/auth/me'),
+  },
   employees: {
     list: () => req<Employee[]>('/employees'),
     get: (id: number) => req<Employee>(`/employees/${id}`),

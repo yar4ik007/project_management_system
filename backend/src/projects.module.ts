@@ -13,6 +13,7 @@ import {
 import { ProjectStatus } from '@prisma/client';
 import { PrismaService } from './prisma.service';
 import { BotsModule, BotsService } from './bots.module';
+import { Admin } from './auth.module';
 
 type ProjectInput = {
   name: string;
@@ -100,6 +101,7 @@ export class ProjectsService {
   }
 }
 
+@Admin()
 @Controller('projects')
 export class ProjectsController {
   constructor(private svc: ProjectsService) {}

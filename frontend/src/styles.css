@@ -166,6 +166,28 @@ button.sm {
   padding: 4px 10px;
   font-size: 12px;
 }
+.icon-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 8px;
+  font-size: 15px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 4px;
+}
+.icon-btn.primary {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+.icon-btn.danger {
+  border-color: #fecaca;
+}
+.icon-btn.danger:hover {
+  background: #fef2f2;
+}
 input,
 select,
 textarea {
@@ -363,4 +385,34 @@ label {
 }
 .progress-wrap {
   margin-top: 6px;
+}
+/* login */
+.login-wrap {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #0f172a, #1e293b);
+}
+.login-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 32px;
+  width: 360px;
+  max-width: 92vw;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+.login-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.sidebar-user {
+  margin-top: 24px;
+  padding: 12px 8px 0;
+  border-top: 1px solid #1e293b;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }

@@ -1,4 +1,4 @@
-import { NavLink, Route, Routes, useNavigate } from 'react-router-dom';
+import { NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import Dashboard from './pages/Dashboard';
 import Employees from './pages/Employees';
@@ -8,13 +8,14 @@ import Calendar from './pages/Calendar';
 import Cabinet from './pages/Cabinet';
 import { api, Employee } from './api';
 import { setActingAs, useActingAs } from './impersonation';
+import { LoginPage, useAuth } from './auth';
 
 function ImpersonationBanner() {
   const actingAs = useActingAs();
   const [emp, setEmp] = useState<Employee | null>(null);
   const nav = useNavigate();
   useEffect(() => {
-    if (actingAs) api.employees.get(actingAs).then(setEmp);
+    if (actingAs) api.employees.get(actingAs).then(setEmp).catch(() => setEmp(null));
     else setEmp(null);
   }, [actingAs]);
   if (!actingAs || !emp) return null;
@@ -34,37 +35,71 @@ function ImpersonationBanner() {
   );
 }
 
+function Sidebar({ isAdmin }: { isAdmin: boolean }) {
+  const { user, logout } = useAuth();
+  return (
+    <aside className="sidebar">
+      <div className="logo">
+        <span className="logo-badge">EOB</span>
+        <span className="logo-text">
+          Eye Of Boss
+          <small>управление проектами</small>
+        </span>
+      </div>
+      <nav>
+        {isAdmin ? (
+          <>
+            <NavLink to="/" end>
+              Дашборд
+            </NavLink>
+            <NavLink to="/calendar">Календарь планирования</NavLink>
+            <NavLink to="/projects">Проекты</NavLink>
+            <NavLink to="/employees">Сотрудники</NavLink>
+            <NavLink to="/me">👤 Кабинет сотрудника</NavLink>
+          </>
+        ) : (
+          <NavLink to="/me">👤 Мой кабинет</NavLink>
+        )}
+      </nav>
+      <div className="sidebar-user">
+        <div className="muted" style={{ fontSize: 12 }}>{user?.name}</div>
+        <button className="sm" onClick={logout}>
+          Выйти
+        </button>
+      </div>
+    </aside>
+  );
+}
+
 export default function App() {
+  const { user, loading } = useAuth();
+
+  if (loading) return <div style={{ padding: 40 }}>Загрузка…</div>;
+  if (!user) return <LoginPage />;
+
+  const isAdmin = !!user.isAdmin;
+
   return (
     <div className="app">
-      <aside className="sidebar">
-        <div className="logo">
-          <span className="logo-badge">EOB</span>
-          <span className="logo-text">
-            Eye Of Boss
-            <small>управление проектами</small>
-          </span>
-        </div>
-        <nav>
-          <NavLink to="/" end>
-            Дашборд
-          </NavLink>
-          <NavLink to="/calendar">Календарь планирования</NavLink>
-          <NavLink to="/projects">Проекты</NavLink>
-          <NavLink to="/employees">Сотрудники</NavLink>
-          <NavLink to="/me">👤 Кабинет сотрудника</NavLink>
-        </nav>
-      </aside>
+      <Sidebar isAdmin={isAdmin} />
       <main className="main">
-        <ImpersonationBanner />
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/calendar" element={<Calendar />} />
-          <Route path="/projects" element={<Projects />} />
-          <Route path="/projects/:id" element={<ProjectDetail />} />
-          <Route path="/employees" element={<Employees />} />
-          <Route path="/me" element={<Cabinet />} />
-        </Routes>
+        {isAdmin && <ImpersonationBanner />}
+        {isAdmin ? (
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/calendar" element={<Calendar />} />
+            <Route path="/projects" element={<Projects />} />
+            <Route path="/projects/:id" element={<ProjectDetail />} />
+            <Route path="/employees" element={<Employees />} />
+            <Route path="/me" element={<Cabinet />} />
+            <Route path="*" element={<Navigate to="/" />} />
+          </Routes>
+        ) : (
+          <Routes>
+            <Route path="/me" element={<Cabinet />} />
+            <Route path="*" element={<Navigate to="/me" />} />
+          </Routes>
+        )}
       </main>
     </div>
   );

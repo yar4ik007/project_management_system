@@ -1,5 +1,6 @@
 import { Controller, Get, Injectable, Module, Query } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
+import { Admin } from './auth.module';
 
 const HOURS = 36e5;
 
@@ -25,7 +26,10 @@ export class DashboardService {
     const days = workdays(from, to);
     const totalWorkdays = days.length;
 
-    const employees = await this.prisma.employee.findMany({ where: { active: true }, orderBy: { name: 'asc' } });
+    const employees = await this.prisma.employee.findMany({
+      where: { active: true, hidden: false },
+      orderBy: { name: 'asc' },
+    });
     const assignments = await this.prisma.assignment.findMany({
       where: { startAt: { lt: to }, endAt: { gt: from } },
     });
@@ -121,7 +125,7 @@ function round(n: number) {
 export class DashboardController {
   constructor(private svc: DashboardService) {}
 
-  @Get('capacity') capacity(@Query('from') from?: string, @Query('to') to?: string) {
+  @Admin() @Get('capacity') capacity(@Query('from') from?: string, @Query('to') to?: string) {
     return this.svc.capacity(from, to);
   }
 }

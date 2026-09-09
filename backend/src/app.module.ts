@@ -8,10 +8,12 @@ import { AbsencesModule } from './absences.module';
 import { DashboardModule } from './dashboard.module';
 import { TrackingModule } from './tracking.module';
 import { BotsModule } from './bots.module';
+import { AuthModule } from './auth.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    AuthModule,
     EmployeesModule,
     ProjectsModule,
     TasksModule,
