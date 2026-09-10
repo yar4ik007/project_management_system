@@ -145,6 +145,13 @@ export interface Tracking {
   task?: Task;
 }
 
+export interface Worklog {
+  from: string;
+  to: string;
+  days: string[];
+  employees: { id: number; name: string; color: string; perDay: number[]; total: number }[];
+}
+
 export interface Capacity {
   range: { from: string; to: string; workdays: number };
   perEmployee: {
@@ -271,6 +278,8 @@ export const api = {
   dashboard: {
     capacity: (from?: string, to?: string) =>
       req<Capacity>(`/dashboard/capacity${from && to ? `?from=${from}&to=${to}` : ''}`),
+    worklog: (from?: string, to?: string) =>
+      req<Worklog>(`/dashboard/worklog${from && to ? `?from=${from}&to=${to}` : ''}`),
   },
   settings: {
     get: () => req<{ adminBotToken: string | null; adminBotUsername: string | null }>('/settings'),

@@ -20,6 +20,50 @@ function workdays(from: Date, to: Date): Date[] {
 export class DashboardService {
   constructor(private prisma: PrismaService) {}
 
+  // Отработанные часы по сотрудникам и дням (для графиков).
+  async worklog(fromStr?: string, toStr?: string) {
+    const from = fromStr ? new Date(fromStr) : new Date(Date.now() - 13 * 24 * HOURS);
+    const to = toStr ? new Date(toStr) : new Date();
+    const fromDay = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+    const toDay = new Date(to.getFullYear(), to.getMonth(), to.getDate());
+
+    // Список дней в диапазоне (включительно).
+    const days: string[] = [];
+    for (const d = new Date(fromDay); d <= toDay; d.setDate(d.getDate() + 1)) days.push(ymd(new Date(d)));
+    const dayIndex = new Map(days.map((d, i) => [d, i]));
+
+    const logs = await this.prisma.timeLog.findMany({
+      where: { date: { gte: fromDay, lt: new Date(toDay.getTime() + 24 * HOURS) } },
+      select: { employeeId: true, date: true, hours: true, employee: { select: { name: true, hidden: true } } },
+    });
+
+    // Группируем по сотруднику.
+    const byEmp = new Map<number, { name: string; perDay: number[] }>();
+    for (const l of logs) {
+      if (l.employee.hidden) continue;
+      const i = dayIndex.get(ymd(new Date(l.date)));
+      if (i === undefined) continue;
+      let e = byEmp.get(l.employeeId);
+      if (!e) {
+        e = { name: l.employee.name, perDay: new Array(days.length).fill(0) };
+        byEmp.set(l.employeeId, e);
+      }
+      e.perDay[i] += l.hours;
+    }
+
+    const employees = [...byEmp.entries()]
+      .map(([id, e]) => ({
+        id,
+        name: e.name,
+        perDay: e.perDay.map((h) => Math.round(h * 100) / 100),
+        total: Math.round(e.perDay.reduce((a, b) => a + b, 0) * 100) / 100,
+      }))
+      .sort((a, b) => b.total - a.total)
+      .map((e, i) => ({ ...e, color: PALETTE[i % PALETTE.length] }));
+
+    return { from: fromDay, to: toDay, days, employees };
+  }
+
   async capacity(fromStr?: string, toStr?: string) {
     const from = fromStr ? new Date(fromStr) : new Date();
     const to = toStr ? new Date(toStr) : new Date(from.getTime() + 28 * 24 * HOURS);
@@ -121,12 +165,24 @@ function round(n: number) {
   return Math.round(n * 10) / 10;
 }
 
+// Палитра для линий/столбиков (каждому сотруднику свой цвет).
+const PALETTE = [
+  '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899',
+  '#06b6d4', '#84cc16', '#f97316', '#6366f1', '#14b8a6', '#e11d48',
+];
+
+const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
 @Controller('dashboard')
 export class DashboardController {
   constructor(private svc: DashboardService) {}
 
   @Admin() @Get('capacity') capacity(@Query('from') from?: string, @Query('to') to?: string) {
     return this.svc.capacity(from, to);
+  }
+
+  @Admin() @Get('worklog') worklog(@Query('from') from?: string, @Query('to') to?: string) {
+    return this.svc.worklog(from, to);
   }
 }
 
