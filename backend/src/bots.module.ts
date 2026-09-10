@@ -202,6 +202,50 @@ export class BotsService implements OnModuleInit {
       await ctx.answerCallbackQuery('Сотрудник добавлен');
       await this.adminEmployees(ctx, false);
     });
+    // Карточка и управление сотрудником
+    bot.callbackQuery(/^a_emp:(\d+)$/, async (ctx) => {
+      await ctx.answerCallbackQuery();
+      if (!(await this.findAdmin(ctx.from.id))) return;
+      await this.adminEmpCard(ctx, Number(ctx.match![1]), true);
+    });
+    bot.callbackQuery(/^a_emp_name:(\d+)$/, async (ctx) => {
+      await ctx.answerCallbackQuery();
+      if (!(await this.findAdmin(ctx.from.id))) return;
+      this.adminState.set(ctx.from.id, { flow: 'emp_edit_name', id: Number(ctx.match![1]) });
+      await ctx.reply('Новое имя сотрудника:');
+    });
+    bot.callbackQuery(/^a_emp_role:(\d+)$/, async (ctx) => {
+      await ctx.answerCallbackQuery();
+      if (!(await this.findAdmin(ctx.from.id))) return;
+      const id = Number(ctx.match![1]);
+      const kb = new InlineKeyboard();
+      ROLES.forEach((r) => kb.text(r.label, `a_setrole:${id}:${r.v}`).row());
+      kb.text('⬅️ Назад', `a_emp:${id}`);
+      await ctx.editMessageText('Новая роль:', { reply_markup: kb }).catch(() => {});
+    });
+    bot.callbackQuery(/^a_setrole:(\d+):(\w+)$/, async (ctx) => {
+      if (!(await this.findAdmin(ctx.from.id))) return ctx.answerCallbackQuery('Нет доступа');
+      await this.prisma.employee.update({ where: { id: Number(ctx.match![1]) }, data: { role: ctx.match![2] as EmployeeRole } });
+      await ctx.answerCallbackQuery('Роль обновлена');
+      await this.adminEmpCard(ctx, Number(ctx.match![1]), true);
+    });
+    bot.callbackQuery(/^a_emp_active:(\d+)$/, async (ctx) => {
+      if (!(await this.findAdmin(ctx.from.id))) return ctx.answerCallbackQuery('Нет доступа');
+      const id = Number(ctx.match![1]);
+      const e = await this.prisma.employee.findUnique({ where: { id } });
+      if (e) await this.prisma.employee.update({ where: { id }, data: { active: !e.active } });
+      await ctx.answerCallbackQuery('Готово');
+      await this.adminEmpCard(ctx, id, true);
+    });
+    bot.callbackQuery(/^a_emp_del:(\d+)$/, async (ctx) => {
+      if (!(await this.findAdmin(ctx.from.id))) return ctx.answerCallbackQuery('Нет доступа');
+      const id = Number(ctx.match![1]);
+      const e = await this.prisma.employee.findUnique({ where: { id } });
+      if (e?.hidden) return ctx.answerCallbackQuery('Системного админа нельзя удалить');
+      await this.prisma.employee.delete({ where: { id } }).catch(() => {});
+      await ctx.answerCallbackQuery('Удалён');
+      await this.adminEmployees(ctx, true);
+    });
 
     // Задачи
     bot.callbackQuery('a_tasks', async (ctx) => {
@@ -304,6 +348,13 @@ export class BotsService implements OnModuleInit {
         return ctx.reply('Роль сотрудника:', { reply_markup: kb });
       }
 
+      if (st.flow === 'emp_edit_name') {
+        await this.prisma.employee.update({ where: { id: st.id }, data: { name: text } });
+        this.adminState.delete(ctx.from.id);
+        await ctx.reply('✅ Имя обновлено.');
+        return this.adminEmpCard(ctx, st.id, false);
+      }
+
       if (st.flow === 'task_add') {
         if (st.step === 'title') {
           st.title = text;
@@ -338,10 +389,34 @@ export class BotsService implements OnModuleInit {
 
   private async adminEmployees(ctx: any, edit: boolean) {
     const emps = await this.prisma.employee.findMany({ where: { hidden: false }, orderBy: { name: 'asc' } });
-    const kb = new InlineKeyboard().text('➕ Добавить сотрудника', 'a_emp_add').row().text('⬅️ Меню', 'a_menu');
-    const text = emps.length
-      ? '👥 Сотрудники:\n\n' + emps.map((e) => `• ${e.name} — ${ROLES.find((r) => r.v === e.role)?.label}${e.isAdmin ? ' ⭐' : ''}`).join('\n')
-      : '👥 Сотрудников пока нет.';
+    const kb = new InlineKeyboard();
+    emps.forEach((e) => kb.text(`${e.active ? '' : '⛔ '}${e.name}${e.isAdmin ? ' ⭐' : ''}`, `a_emp:${e.id}`).row());
+    kb.text('➕ Добавить сотрудника', 'a_emp_add').row().text('⬅️ Меню', 'a_menu');
+    const text = emps.length ? '👥 Сотрудники (нажмите для управления):' : '👥 Сотрудников пока нет.';
+    return edit
+      ? ctx.editMessageText(text, { reply_markup: kb }).catch(() => ctx.reply(text, { reply_markup: kb }))
+      : ctx.reply(text, { reply_markup: kb });
+  }
+
+  // Карточка сотрудника с действиями.
+  private async adminEmpCard(ctx: any, id: number, edit: boolean) {
+    const e = await this.prisma.employee.findUnique({ where: { id } });
+    if (!e) return this.adminEmployees(ctx, edit);
+    const kb = new InlineKeyboard()
+      .text('✏️ Имя', `a_emp_name:${id}`)
+      .text('🎭 Роль', `a_emp_role:${id}`)
+      .row()
+      .text(e.active ? '⛔ Деактивировать' : '✅ Активировать', `a_emp_active:${id}`)
+      .row()
+      .text('🗑 Удалить', `a_emp_del:${id}`)
+      .row()
+      .text('⬅️ К списку', 'a_employees');
+    const text =
+      `👤 ${e.name}\n` +
+      `Роль: ${ROLES.find((r) => r.v === e.role)?.label}${e.isAdmin ? ' · ⭐ админ' : ''}\n` +
+      `Должность: ${e.position || '—'}\n` +
+      `Часов/нед: ${e.weeklyHours}\n` +
+      `Статус: ${e.active ? 'активен' : 'неактивен'}`;
     return edit
       ? ctx.editMessageText(text, { reply_markup: kb }).catch(() => ctx.reply(text, { reply_markup: kb }))
       : ctx.reply(text, { reply_markup: kb });
