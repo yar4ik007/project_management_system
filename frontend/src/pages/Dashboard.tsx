@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, Capacity, Tracking, ROLE_LABEL } from '../api';
 import { fmtDate } from '../ui';
+import WorklogCharts from './Analytics';
 
 function hms(sec: number) {
   const h = Math.floor(sec / 3600);
@@ -217,6 +218,8 @@ export default function Dashboard() {
           </table>
         </div>
       </div>
+
+      <WorklogCharts />
     </div>
   );
 }

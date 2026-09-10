@@ -7,7 +7,8 @@ const ddmm = (s: string) => {
   return `${d}.${m}`;
 };
 
-export default function Analytics() {
+// Блок аналитики отработанного времени — встраивается в Дашборд.
+export default function WorklogCharts() {
   const [data, setData] = useState<Worklog | null>(null);
   const today = new Date();
   const [from, setFrom] = useState(ymd(new Date(today.getTime() - 13 * 864e5)));
@@ -18,10 +19,10 @@ export default function Analytics() {
   }, [from, to]);
 
   return (
-    <div>
-      <div className="page-head">
-        <h2>Аналитика времени</h2>
-        <div className="row">
+    <div className="card">
+      <div className="flex-between" style={{ marginBottom: 12, flexWrap: 'wrap', gap: 12 }}>
+        <h3 style={{ margin: 0 }}>Отработанное время</h3>
+        <div className="row" style={{ margin: 0 }}>
           <div>
             <label>С</label>
             <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
@@ -36,18 +37,14 @@ export default function Analytics() {
       {!data ? (
         <div className="muted">Загрузка…</div>
       ) : data.employees.length === 0 ? (
-        <div className="card muted">За выбранный период отработанных часов нет.</div>
+        <div className="muted">За выбранный период отработанных часов нет.</div>
       ) : (
         <>
           <Legend employees={data.employees} />
-          <div className="card">
-            <h3>Отработано по дням (часы)</h3>
-            <LineChart data={data} />
-          </div>
-          <div className="card">
-            <h3>Всего за период по сотрудникам (часы)</h3>
-            <BarChart data={data} />
-          </div>
+          <div style={{ fontWeight: 600, margin: '8px 0 4px' }}>Отработано по дням (часы)</div>
+          <LineChart data={data} />
+          <div style={{ fontWeight: 600, margin: '20px 0 4px' }}>Всего за период по сотрудникам (часы)</div>
+          <BarChart data={data} />
         </>
       )}
     </div>
@@ -56,7 +53,7 @@ export default function Analytics() {
 
 function Legend({ employees }: { employees: Worklog['employees'] }) {
   return (
-    <div className="card" style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, padding: '4px 0 8px' }}>
       {employees.map((e) => (
         <span key={e.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
           <i style={{ width: 12, height: 12, borderRadius: 3, background: e.color, display: 'inline-block' }} />
