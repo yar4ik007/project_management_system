@@ -43,6 +43,7 @@ const STATUS_RU: Record<string, string> = {
 export class BotsService implements OnModuleInit {
   private bots = new Map<number, Bot>(); // projectId -> bot
   private awaitingNote = new Map<number, number>(); // tgId -> employeeId (ждём текст заметки)
+  private awaitingEstimate = new Map<number, { taskId: number; employeeId: number }>(); // ждём оценку задачи
   private adminBot?: Bot; // главный админ-бот
   private adminState = new Map<number, any>(); // tgId -> состояние диалога админ-бота
 
@@ -551,7 +552,23 @@ export class BotsService implements OnModuleInit {
       await this.sendNotes(ctx, emp.id, true);
     });
 
-    // Трекинг
+    // Открыть задачу (детали + кнопки внутри)
+    bot.callbackQuery(/^open:(\d+)$/, async (ctx) => {
+      const emp = await withAccess(ctx);
+      await ctx.answerCallbackQuery();
+      if (emp) await this.openTask(ctx, emp.id, Number(ctx.match![1]), true);
+    });
+
+    // Оценку задаёт исполнитель
+    bot.callbackQuery(/^est:(\d+)$/, async (ctx) => {
+      const emp = await withAccess(ctx);
+      await ctx.answerCallbackQuery();
+      if (!emp) return;
+      this.awaitingEstimate.set(ctx.from.id, { taskId: Number(ctx.match![1]), employeeId: emp.id });
+      await ctx.reply('Введите оценку задачи в часах (можно дробью, напр. 1.5 или 0.5):');
+    });
+
+    // Трекинг — кнопки внутри задачи; после действия обновляем карточку задачи.
     const act =
       (fn: 'start' | 'pause' | 'stop') =>
       async (ctx: any) => {
@@ -559,23 +576,72 @@ export class BotsService implements OnModuleInit {
         if (!emp) return;
         const taskId = Number(ctx.match[1]);
         await this.tracking[fn](taskId, emp.id);
-        const label = fn === 'start' ? '▶️ Пошло' : fn === 'pause' ? '⏸ Пауза' : '⏹ Остановлено, время записано';
+        const label = fn === 'start' ? '▶️ Пошло' : fn === 'pause' ? '⏸ Пауза, время записано' : '⏹ Стоп, время записано';
         await ctx.answerCallbackQuery(label);
-        await this.sendTasks(ctx, projectId, emp.id, true);
+        await this.openTask(ctx, emp.id, taskId, true);
       };
     bot.callbackQuery(/^start:(\d+)$/, act('start'));
     bot.callbackQuery(/^pause:(\d+)$/, act('pause'));
     bot.callbackQuery(/^stop:(\d+)$/, act('stop'));
 
-    // Приём текста новой заметки (когда ждём ввод). Команды не трогаем.
+    // Приём текста: сначала оценка задачи, затем заметки. Команды не трогаем.
     bot.on('message:text', async (ctx, next) => {
+      const text = ctx.message.text;
+      if (text.startsWith('/')) return next();
+
+      const est = this.awaitingEstimate.get(ctx.from.id);
+      if (est) {
+        this.awaitingEstimate.delete(ctx.from.id);
+        const val = Number(text.replace(',', '.').trim());
+        if (isNaN(val) || val < 0) {
+          await ctx.reply('Не понял число. Откройте задачу и нажмите «📝 Оценить» ещё раз.');
+          return;
+        }
+        await this.prisma.task.update({ where: { id: est.taskId }, data: { estimateHours: Math.round(val * 100) / 100 } });
+        await ctx.reply(`✅ Оценка сохранена: ${val} ч`);
+        return this.openTask(ctx, est.employeeId, est.taskId, false);
+      }
+
       const empId = this.awaitingNote.get(ctx.from.id);
-      if (!empId || ctx.message.text.startsWith('/')) return next();
+      if (!empId) return next();
       this.awaitingNote.delete(ctx.from.id);
-      await this.prisma.note.create({ data: { employeeId: empId, text: ctx.message.text } });
+      await this.prisma.note.create({ data: { employeeId: empId, text } });
       await ctx.reply('📝 Заметка добавлена.');
       await this.sendNotes(ctx, empId);
     });
+  }
+
+  // Карточка задачи в боте: детали, оценка, отработанное время (в долях часа) и кнопки трекинга.
+  private async openTask(ctx: any, employeeId: number, taskId: number, edit = false) {
+    const t = await this.prisma.task.findUnique({
+      where: { id: taskId },
+      include: { project: true, timeLogs: { select: { hours: true } }, trackings: { where: { employeeId } } },
+    });
+    if (!t) return;
+    const spent = t.timeLogs.reduce((s, l) => s + l.hours, 0);
+    const tr = t.trackings[0];
+    const running = tr?.state === 'RUNNING';
+    const paused = tr?.state === 'PAUSED';
+    const live = tr ? liveSec(tr) : 0;
+
+    const kb = new InlineKeyboard();
+    if (running) kb.text('⏸ Пауза', `pause:${t.id}`).text('⏹ Стоп', `stop:${t.id}`).row();
+    else kb.text(paused ? '▶️ Продолжить' : '▶️ Старт', `start:${t.id}`).row();
+    kb.text('📝 Оценить', `est:${t.id}`).row();
+    kb.text('⬅️ К задачам', 'tasks');
+
+    const text =
+      `📂 #${t.id} ${t.title}\n` +
+      `Проект: ${t.project?.name}\n` +
+      (t.description ? `\n${t.description}\n` : '') +
+      `\nПриоритет: P${t.priorityRank} · статус: ${STATUS_RU[t.status]}\n` +
+      `Оценка: ${t.estimateHours ? `${t.estimateHours} ч` : '— не задана (нажмите «Оценить») —'}\n` +
+      `Отработано: ${spent.toFixed(2)} ч (${Math.round(spent * 60)} мин)` +
+      (running ? `\n🟢 Идёт сейчас: ${fmtDur(live)}` : paused ? `\n⏸ На паузе` : '');
+
+    return edit
+      ? ctx.editMessageText(text, { reply_markup: kb }).catch(() => ctx.reply(text, { reply_markup: kb }))
+      : ctx.reply(text, { reply_markup: kb });
   }
 
   // Авто-регистрация сотрудника из Telegram при /start бота проекта (без роли — ждёт доступа).
@@ -628,25 +694,16 @@ export class BotsService implements OnModuleInit {
     }
 
     const kb = new InlineKeyboard();
-    const lines: string[] = [`📋 ${project?.name} — ваши задачи:\n`];
+    const lines: string[] = [`📋 ${project?.name} — ваши задачи (нажмите, чтобы открыть):\n`];
     for (const t of tasks) {
       const spent = t.timeLogs.reduce((s, l) => s + l.hours, 0);
       const tr = t.trackings[0];
-      const running = tr?.state === 'RUNNING';
-      const paused = tr?.state === 'PAUSED';
-      const live = tr ? liveSec(tr) : 0;
-      const mark = running ? '🟢 идёт' : paused ? '⏸ пауза' : '';
+      const mark = tr?.state === 'RUNNING' ? '🟢' : tr?.state === 'PAUSED' ? '⏸' : '';
       lines.push(
-        `#${t.id} P${t.priorityRank} · ${t.title}\n` +
-          `   ${STATUS_RU[t.status]} · факт ${spent.toFixed(1)}ч / оценка ${t.estimateHours}ч ${
-            running ? `· сейчас ${fmtDur(live)} ${mark}` : mark ? `· ${mark}` : ''
-          }`,
+        `#${t.id} P${t.priorityRank} · ${t.title} ${mark}\n` +
+          `   ${STATUS_RU[t.status]} · ${spent.toFixed(2)}ч / оценка ${t.estimateHours ? t.estimateHours + 'ч' : '—'}`,
       );
-      if (running) {
-        kb.text(`⏸ ${t.id}`, `pause:${t.id}`).text(`⏹ ${t.id}`, `stop:${t.id}`).row();
-      } else {
-        kb.text(`▶️ ${t.id} ${t.title.slice(0, 18)}`, `start:${t.id}`).row();
-      }
+      kb.text(`${mark || '📂'} #${t.id} ${t.title.slice(0, 24)}`, `open:${t.id}`).row();
     }
     kb.text('🔄 Обновить', 'tasks').text('📝 Заметки', 'notes');
     const text = lines.join('\n');
