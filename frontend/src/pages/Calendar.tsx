@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { api, Absence, AbsenceType, Assignment, Employee, Task, ABSENCE_LABEL } from '../api';
+import { api, Absence, AbsenceType, Assignment, Employee, Project, Task, ABSENCE_LABEL } from '../api';
 import { Modal, mondayOf, ymd, fmtTime } from '../ui';
 
 const DAY_NAMES = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
@@ -14,6 +14,7 @@ export default function Calendar() {
   const [weekStart, setWeekStart] = useState(() => mondayOf(new Date()));
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [absences, setAbsences] = useState<Absence[]>([]);
   const [slotModal, setSlotModal] = useState<{ employee: Employee; day: Date } | null>(null);
@@ -35,6 +36,7 @@ export default function Calendar() {
   useEffect(() => {
     api.employees.list().then(setEmployees);
     api.tasks.list().then(setTasks);
+    api.projects.list().then(setProjects);
   }, []);
   useEffect(() => {
     load();
@@ -166,10 +168,12 @@ export default function Calendar() {
           employee={slotModal.employee}
           day={slotModal.day}
           tasks={tasks}
+          projects={projects}
           onClose={() => setSlotModal(null)}
           onSaved={() => {
             setSlotModal(null);
             load();
+            api.tasks.list().then(setTasks);
           }}
         />
       )}
@@ -336,20 +340,27 @@ function SlotModal({
   employee,
   day,
   tasks,
+  projects,
   onClose,
   onSaved,
 }: {
   employee: Employee;
   day: Date;
   tasks: Task[];
+  projects: Project[];
   onClose: () => void;
   onSaved: () => void;
 }) {
+  // taskId: 0 — не выбрано, -1 — «новая задача», >0 — существующая
   const [taskId, setTaskId] = useState<number>(0);
+  const [newTitle, setNewTitle] = useState('');
+  const [newProjectId, setNewProjectId] = useState<number>(projects[0]?.id || 0);
   const [start, setStart] = useState('10:00');
   const [end, setEnd] = useState('14:00');
   const [error, setError] = useState<string | null>(null);
   const [conflict, setConflict] = useState<any>(null);
+
+  const isNew = taskId === -1;
 
   const build = () => {
     const mk = (t: string) => {
@@ -360,16 +371,45 @@ function SlotModal({
     };
     return { startAt: mk(start), endAt: mk(end) };
   };
+  const durationHours = () => {
+    const [h1, m1] = start.split(':').map(Number);
+    const [h2, m2] = end.split(':').map(Number);
+    return Math.max(0, Math.round(((h2 * 60 + m2 - (h1 * 60 + m1)) / 60) * 10) / 10);
+  };
 
   const submit = async (force: boolean) => {
     setError(null);
-    if (!taskId) {
-      setError('Выберите задачу');
+    let realTaskId = taskId;
+    // Создание новой задачи прямо из календаря
+    if (isNew) {
+      if (!newTitle.trim()) {
+        setError('Введите название задачи');
+        return;
+      }
+      if (!newProjectId) {
+        setError('Выберите проект');
+        return;
+      }
+      try {
+        const t = await api.tasks.create({
+          projectId: newProjectId,
+          title: newTitle.trim(),
+          assigneeId: employee.id,
+          estimateHours: durationHours(),
+          status: 'IN_PROGRESS',
+        });
+        realTaskId = t.id;
+      } catch (e: any) {
+        setError(e.message || 'Не удалось создать задачу');
+        return;
+      }
+    } else if (!taskId) {
+      setError('Выберите задачу или создайте новую');
       return;
     }
     const { startAt, endAt } = build();
     try {
-      await api.assignments.create({ employeeId: employee.id, taskId, startAt, endAt }, force);
+      await api.assignments.create({ employeeId: employee.id, taskId: realTaskId, startAt, endAt }, force);
       onSaved();
     } catch (e: any) {
       if (e.status === 409) {
@@ -398,6 +438,7 @@ function SlotModal({
         <label>Задача</label>
         <select value={taskId} onChange={(e) => setTaskId(Number(e.target.value))}>
           <option value={0}>— выберите —</option>
+          <option value={-1}>➕ Новая задача…</option>
           {tasks.map((t) => (
             <option key={t.id} value={t.id}>
               [{t.project?.code}] {t.title}
@@ -405,6 +446,28 @@ function SlotModal({
           ))}
         </select>
       </div>
+      {isNew && (
+        <div className="card" style={{ background: '#f8fafc', margin: 0, marginBottom: 12 }}>
+          <div className="field">
+            <label>Название новой задачи</label>
+            <input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Что нужно сделать" autoFocus />
+          </div>
+          <div className="field" style={{ marginBottom: 0 }}>
+            <label>Проект</label>
+            <select value={newProjectId} onChange={(e) => setNewProjectId(Number(e.target.value))}>
+              <option value={0}>— выберите проект —</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  [{p.code}] {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <small className="muted">
+            Задача создастся на «{employee.name}», оценка — {durationHours()} ч (по длине слота).
+          </small>
+        </div>
+      )}
       <div className="row">
         <div className="field" style={{ flex: 1 }}>
           <label>Начало</label>
@@ -417,7 +480,7 @@ function SlotModal({
       </div>
       <div className="row">
         <button className="primary" onClick={() => submit(false)}>
-          Запланировать
+          {isNew ? 'Создать и запланировать' : 'Запланировать'}
         </button>
         {conflict && (
           <button className="danger" onClick={() => submit(true)}>
