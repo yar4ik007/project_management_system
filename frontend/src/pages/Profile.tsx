@@ -38,6 +38,26 @@ export default function Profile() {
                   <td>{user.login || '—'}</td>
                 </tr>
                 <tr>
+                  <td className="muted">Email</td>
+                  <td>{user.email || '—'}</td>
+                </tr>
+                <tr>
+                  <td className="muted">Telegram</td>
+                  <td>
+                    {user.telegramUsername ? (
+                      <a href={`https://t.me/${user.telegramUsername}`} target="_blank" rel="noreferrer">
+                        @{user.telegramUsername}
+                      </a>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
+                </tr>
+                <tr>
+                  <td className="muted">Telegram ID</td>
+                  <td>{user.telegramUserId ? user.telegramUserId : <span className="muted">не привязан</span>}</td>
+                </tr>
+                <tr>
                   <td className="muted">2FA</td>
                   <td>{user.twoFactorEnabled ? '🔒 включена' : 'выключена'}</td>
                 </tr>
