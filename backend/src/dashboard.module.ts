@@ -162,7 +162,7 @@ export class DashboardService {
 }
 
 function round(n: number) {
-  return Math.round(n * 10) / 10;
+  return Math.round(n * 100) / 100; // 2 знака — чтобы минуты (доли часа) не терялись
 }
 
 // Палитра для линий/столбиков (каждому сотруднику свой цвет).
