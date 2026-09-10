@@ -75,6 +75,14 @@ export class TasksService {
     return this.prisma.task.delete({ where: { id } });
   }
 
+  // Все таймлоги (для отдельного раздела в меню)
+  listLogs() {
+    return this.prisma.timeLog.findMany({
+      orderBy: { date: 'desc' },
+      include: { employee: true, task: { include: { project: true } } },
+    });
+  }
+
   // Таймлоги
   addLog(taskId: number, body: { employeeId: number; hours: number; date?: string; note?: string }) {
     return this.prisma.timeLog.create({
@@ -113,6 +121,11 @@ export class TasksController {
 
   @Get() list(@Query('projectId') projectId?: string, @Query('assigneeId') assigneeId?: string) {
     return this.svc.list(projectId ? Number(projectId) : undefined, assigneeId ? Number(assigneeId) : undefined);
+  }
+
+  // Важно: до @Get(':id'), иначе /tasks/logs попадёт в :id
+  @Admin() @Get('logs') logs() {
+    return this.svc.listLogs();
   }
 
   @Get(':id') get(@Param('id', ParseIntPipe) id: number) {

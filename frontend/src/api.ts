@@ -110,6 +110,7 @@ export interface TimeLog {
   date: string;
   note?: string | null;
   employee?: Employee;
+  task?: Task;
 }
 
 export interface Assignment {
@@ -248,6 +249,7 @@ export const api = {
     addLog: (id: number, data: { employeeId: number; hours: number; date?: string; note?: string }) =>
       req<TimeLog>(`/tasks/${id}/logs`, { method: 'POST', body: JSON.stringify(data) }),
     removeLog: (logId: number) => req<void>(`/tasks/logs/${logId}`, { method: 'DELETE' }),
+    allLogs: () => req<TimeLog[]>('/tasks/logs'),
   },
   assignments: {
     list: (from: string, to: string, employeeId?: number) =>
