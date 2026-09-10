@@ -19,7 +19,7 @@ import { Admin } from './auth.module';
 type EmployeeInput = {
   name: string;
   email?: string | null;
-  role: EmployeeRole;
+  role?: EmployeeRole | null;
   position?: string | null;
   weeklyHours?: number;
   active?: boolean;
@@ -86,6 +86,7 @@ export class EmployeesService {
     if (typeof out.weeklyHours === 'string') out.weeklyHours = Number(out.weeklyHours);
     if (out.email === '') out.email = null;
     if (out.login === '') out.login = null;
+    if (out.role === '') out.role = null; // «без роли»
     if (data.password) out.passwordHash = bcrypt.hashSync(data.password, 10);
     return out;
   }

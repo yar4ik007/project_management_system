@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api, Assignment, Employee, Note, Task, Tracking, ROLE_LABEL, TASK_STATUS_LABEL } from '../api';
+import { api, Assignment, Employee, Note, Task, Tracking, roleLabel, TASK_STATUS_LABEL } from '../api';
 import { useActingAs } from '../impersonation';
 import { useAuth } from '../auth';
 import { TASK_STATUS_COLOR, fmtTime } from '../ui';
@@ -53,7 +53,7 @@ export default function Cabinet() {
     <div>
       <div className="page-head">
         <h2>
-          Кабинет: {emp.name} <span className="badge">{ROLE_LABEL[emp.role]}</span>
+          Кабинет: {emp.name} <span className="badge">{roleLabel(emp.role)}</span>
         </h2>
         <span className="muted">{emp.position}</span>
       </div>

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { api, ROLE_LABEL } from '../api';
+import { api, roleLabel } from '../api';
 import { useAuth } from '../auth';
 
 export default function Profile() {
@@ -25,7 +25,7 @@ export default function Profile() {
                 <tr>
                   <td className="muted">Роль</td>
                   <td>
-                    <span className="badge">{ROLE_LABEL[user.role]}</span>
+                    <span className="badge">{roleLabel(user.role)}</span>
                     {user.isAdmin && <span title="Администратор"> ⭐ админ</span>}
                   </td>
                 </tr>

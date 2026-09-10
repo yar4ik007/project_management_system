@@ -47,11 +47,12 @@ export interface Employee {
   id: number;
   name: string;
   email?: string | null;
-  role: Role;
+  role: Role | null;
   position?: string | null;
   weeklyHours: number;
   active: boolean;
   telegramUserId?: string | null;
+  telegramUsername?: string | null;
   login?: string | null;
   isAdmin?: boolean;
   twoFactorEnabled?: boolean;
@@ -286,6 +287,7 @@ export const ROLE_LABEL: Record<Role, string> = {
   MANAGER: 'Руководитель',
   DEVELOPER: 'Разработчик',
 };
+export const roleLabel = (role?: Role | null) => (role ? ROLE_LABEL[role] : '⏳ без роли');
 export const STATUS_LABEL: Record<ProjectStatus, string> = {
   PLANNED: 'Запланирован',
   ACTIVE: 'В работе',

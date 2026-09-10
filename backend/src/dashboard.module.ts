@@ -27,7 +27,7 @@ export class DashboardService {
     const totalWorkdays = days.length;
 
     const employees = await this.prisma.employee.findMany({
-      where: { active: true, hidden: false },
+      where: { active: true, hidden: false, role: { not: null } }, // без роли — ещё не в работе
       orderBy: { name: 'asc' },
     });
     const assignments = await this.prisma.assignment.findMany({

@@ -390,7 +390,9 @@ export class BotsService implements OnModuleInit {
   private async adminEmployees(ctx: any, edit: boolean) {
     const emps = await this.prisma.employee.findMany({ where: { hidden: false }, orderBy: { name: 'asc' } });
     const kb = new InlineKeyboard();
-    emps.forEach((e) => kb.text(`${e.active ? '' : '⛔ '}${e.name}${e.isAdmin ? ' ⭐' : ''}`, `a_emp:${e.id}`).row());
+    emps.forEach((e) =>
+      kb.text(`${e.active ? '' : '⛔ '}${!e.role ? '⏳ ' : ''}${e.name}${e.isAdmin ? ' ⭐' : ''}`, `a_emp:${e.id}`).row(),
+    );
     kb.text('➕ Добавить сотрудника', 'a_emp_add').row().text('⬅️ Меню', 'a_menu');
     const text = emps.length ? '👥 Сотрудники (нажмите для управления):' : '👥 Сотрудников пока нет.';
     return edit
@@ -413,7 +415,8 @@ export class BotsService implements OnModuleInit {
       .text('⬅️ К списку', 'a_employees');
     const text =
       `👤 ${e.name}\n` +
-      `Роль: ${ROLES.find((r) => r.v === e.role)?.label}${e.isAdmin ? ' · ⭐ админ' : ''}\n` +
+      `Роль: ${ROLES.find((r) => r.v === e.role)?.label || '⏳ не назначена'}${e.isAdmin ? ' · ⭐ админ' : ''}\n` +
+      (e.telegramUsername ? `Telegram: @${e.telegramUsername}\n` : '') +
       `Должность: ${e.position || '—'}\n` +
       `Часов/нед: ${e.weeklyHours}\n` +
       `Статус: ${e.active ? 'активен' : 'неактивен'}`;
@@ -485,55 +488,64 @@ export class BotsService implements OnModuleInit {
     const findEmployee = (tgId?: number) =>
       tgId ? this.prisma.employee.findUnique({ where: { telegramUserId: String(tgId) } }) : Promise.resolve(null);
 
-    // /start — привязка или меню задач.
-    bot.command('start', async (ctx) => {
+    const noRoleMsg = '⏳ Вы зарегистрированы и ждёте доступа. Руководитель назначит вам роль — тогда появятся задачи.';
+    // Сотрудник с доступом (есть роль) или null.
+    const withAccess = async (ctx: any) => {
       const emp = await findEmployee(ctx.from?.id);
-      if (emp) return this.sendTasks(ctx, projectId, emp.id);
-      // не привязан — предложить выбрать себя среди участников проекта
-      const members = await this.prisma.projectMember.findMany({
-        where: { projectId },
-        include: { employee: true },
-      });
-      const free = members.filter((m) => !m.employee.telegramUserId);
-      if (!free.length) return ctx.reply('Все участники проекта уже привязаны. Обратитесь к руководителю.');
-      const kb = new InlineKeyboard();
-      free.forEach((m) => kb.text(m.employee.name, `link:${m.employee.id}`).row());
-      await ctx.reply('Кто вы? Выберите себя из участников проекта:', { reply_markup: kb });
-    });
-
-    bot.callbackQuery(/^link:(\d+)$/, async (ctx) => {
-      const empId = Number(ctx.match![1]);
-      const exists = await this.prisma.employee.findUnique({ where: { telegramUserId: String(ctx.from.id) } });
-      if (!exists) {
-        await this.prisma.employee.update({ where: { id: empId }, data: { telegramUserId: String(ctx.from.id) } });
+      if (!emp) {
+        await ctx.answerCallbackQuery?.('Сначала /start');
+        return null;
       }
-      await ctx.answerCallbackQuery('Готово, вы привязаны');
-      await this.sendTasks(ctx, projectId, empId);
+      if (!emp.role) {
+        await ctx.answerCallbackQuery?.('Ждите назначения роли');
+        return null;
+      }
+      return emp;
+    };
+
+    // /start — авто-регистрация из Telegram + меню задач.
+    bot.command('start', async (ctx) => {
+      const from = ctx.from!;
+      let emp = await findEmployee(from.id);
+      if (!emp) {
+        emp = await this.registerFromTelegram(from, projectId);
+      } else {
+        // уже зарегистрирован — привяжем к этому проекту, если ещё не участник
+        await this.prisma.projectMember
+          .upsert({
+            where: { employeeId_projectId: { employeeId: emp.id, projectId } },
+            create: { employeeId: emp.id, projectId },
+            update: {},
+          })
+          .catch(() => {});
+      }
+      if (!emp.role) return ctx.reply(noRoleMsg);
+      return this.sendTasks(ctx, projectId, emp.id);
     });
 
     bot.callbackQuery('tasks', async (ctx) => {
-      const emp = await findEmployee(ctx.from?.id);
+      const emp = await withAccess(ctx);
       await ctx.answerCallbackQuery();
       if (emp) await this.sendTasks(ctx, projectId, emp.id);
     });
 
     // Заметки сотрудника — список отдельных записей
     bot.callbackQuery('notes', async (ctx) => {
-      const emp = await findEmployee(ctx.from?.id);
+      const emp = await withAccess(ctx);
       await ctx.answerCallbackQuery();
       if (!emp) return;
       await this.sendNotes(ctx, emp.id);
     });
     bot.callbackQuery('note_add', async (ctx) => {
-      const emp = await findEmployee(ctx.from?.id);
+      const emp = await withAccess(ctx);
       await ctx.answerCallbackQuery();
       if (!emp) return;
       this.awaitingNote.set(ctx.from.id, emp.id);
       await ctx.reply('Пришлите текст новой заметки одним сообщением.');
     });
     bot.callbackQuery(/^note_del:(\d+)$/, async (ctx) => {
-      const emp = await findEmployee(ctx.from?.id);
-      if (!emp) return ctx.answerCallbackQuery('Сначала /start');
+      const emp = await withAccess(ctx);
+      if (!emp) return;
       await this.prisma.note.deleteMany({ where: { id: Number(ctx.match![1]), employeeId: emp.id } });
       await ctx.answerCallbackQuery('Удалено');
       await this.sendNotes(ctx, emp.id, true);
@@ -543,8 +555,8 @@ export class BotsService implements OnModuleInit {
     const act =
       (fn: 'start' | 'pause' | 'stop') =>
       async (ctx: any) => {
-        const emp = await findEmployee(ctx.from?.id);
-        if (!emp) return ctx.answerCallbackQuery('Сначала /start');
+        const emp = await withAccess(ctx);
+        if (!emp) return;
         const taskId = Number(ctx.match[1]);
         await this.tracking[fn](taskId, emp.id);
         const label = fn === 'start' ? '▶️ Пошло' : fn === 'pause' ? '⏸ Пауза' : '⏹ Остановлено, время записано';
@@ -564,6 +576,25 @@ export class BotsService implements OnModuleInit {
       await ctx.reply('📝 Заметка добавлена.');
       await this.sendNotes(ctx, empId);
     });
+  }
+
+  // Авто-регистрация сотрудника из Telegram при /start бота проекта (без роли — ждёт доступа).
+  private async registerFromTelegram(from: any, projectId: number) {
+    const id = String(from.id);
+    const fullName = [from.first_name, from.last_name].filter(Boolean).join(' ').trim();
+    const name = fullName || (from.username ? `@${from.username}` : `Telegram ${id}`);
+    const emp = await this.prisma.employee.create({
+      data: {
+        name,
+        telegramUserId: id,
+        telegramUsername: from.username || null,
+        email: `telegram-${id}@integration.user`,
+        role: null, // роль назначит руководитель
+        active: true,
+      },
+    });
+    await this.prisma.projectMember.create({ data: { employeeId: emp.id, projectId } }).catch(() => {});
+    return emp;
   }
 
   private async sendNotes(ctx: any, employeeId: number, edit = false) {

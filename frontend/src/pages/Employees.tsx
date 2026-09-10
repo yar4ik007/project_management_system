@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, Employee, Role, ROLE_LABEL } from '../api';
+import { api, Employee, Role, ROLE_LABEL, roleLabel } from '../api';
 import { Modal } from '../ui';
 import { setActingAs } from '../impersonation';
 
@@ -67,9 +67,12 @@ export default function Employees() {
                 <td>
                   {e.name} {e.isAdmin && <span title="Администратор">⭐</span>}
                   {e.login && <div className="muted" style={{ fontSize: 11 }}>@{e.login}</div>}
+                  {e.telegramUsername && (
+                    <div className="muted" style={{ fontSize: 11 }}>TG @{e.telegramUsername}</div>
+                  )}
                 </td>
                 <td>
-                  <span className="badge">{ROLE_LABEL[e.role]}</span>
+                  <span className="badge">{roleLabel(e.role)}</span>
                 </td>
                 <td>{e.position || '—'}</td>
                 <td>{e.weeklyHours}</td>
@@ -112,7 +115,11 @@ export default function Employees() {
           <div className="row">
             <div className="field" style={{ flex: 1 }}>
               <label>Роль</label>
-              <select value={edit.role} onChange={(e) => setEdit({ ...edit, role: e.target.value as Role })}>
+              <select
+                value={edit.role || ''}
+                onChange={(e) => setEdit({ ...edit, role: (e.target.value || null) as Role | null })}
+              >
+                <option value="">⏳ без роли</option>
                 {(['OPERATOR', 'MANAGER', 'DEVELOPER'] as Role[]).map((r) => (
                   <option key={r} value={r}>
                     {ROLE_LABEL[r]}
