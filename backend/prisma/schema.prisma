@@ -10,6 +10,12 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Глобальные настройки (ключ-значение): токен админ-бота и пр.
+model Setting {
+  key   String  @id
+  value String?
+}
+
 enum EmployeeRole {
   OPERATOR // оператор
   MANAGER // руководитель

@@ -9,6 +9,7 @@ import { DashboardModule } from './dashboard.module';
 import { TrackingModule } from './tracking.module';
 import { BotsModule } from './bots.module';
 import { AuthModule } from './auth.module';
+import { SettingsModule } from './settings.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { AuthModule } from './auth.module';
     DashboardModule,
     TrackingModule,
     BotsModule,
+    SettingsModule,
   ],
 })
 export class AppModule {}

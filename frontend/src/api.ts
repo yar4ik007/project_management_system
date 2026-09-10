@@ -271,6 +271,14 @@ export const api = {
     capacity: (from?: string, to?: string) =>
       req<Capacity>(`/dashboard/capacity${from && to ? `?from=${from}&to=${to}` : ''}`),
   },
+  settings: {
+    get: () => req<{ adminBotToken: string | null; adminBotUsername: string | null }>('/settings'),
+    update: (adminBotToken: string | null) =>
+      req<{ adminBotToken: string | null; adminBotUsername: string | null }>('/settings', {
+        method: 'PATCH',
+        body: JSON.stringify({ adminBotToken }),
+      }),
+  },
 };
 
 export const ROLE_LABEL: Record<Role, string> = {

@@ -8,6 +8,7 @@ import Calendar from './pages/Calendar';
 import Cabinet from './pages/Cabinet';
 import Notes from './pages/Notes';
 import Profile from './pages/Profile';
+import Settings from './pages/Settings';
 import { api, Employee } from './api';
 import { setActingAs, useActingAs } from './impersonation';
 import { LoginPage, useAuth } from './auth';
@@ -58,6 +59,7 @@ function Sidebar({ isAdmin }: { isAdmin: boolean }) {
             <NavLink to="/projects">Проекты</NavLink>
             <NavLink to="/employees">Сотрудники</NavLink>
             <NavLink to="/notes">Заметки</NavLink>
+            <NavLink to="/settings">Настройки</NavLink>
           </>
         ) : (
           <>
@@ -100,6 +102,7 @@ export default function App() {
             <Route path="/employees" element={<Employees />} />
             <Route path="/notes" element={<Notes />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/settings" element={<Settings />} />
             <Route path="/me" element={<Cabinet />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
