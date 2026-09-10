@@ -74,12 +74,12 @@ function niceMax(v: number) {
 }
 
 function LineChart({ data }: { data: Worklog }) {
-  const W = 820,
-    H = 340,
-    padL = 44,
-    padR = 16,
-    padT = 14,
-    padB = 54;
+  const W = 1000,
+    H = 240,
+    padL = 34,
+    padR = 14,
+    padT = 12,
+    padB = 34;
   const iw = W - padL - padR,
     ih = H - padT - padB;
   const n = data.days.length;
@@ -90,12 +90,12 @@ function LineChart({ data }: { data: Worklog }) {
   const xStep = Math.max(1, Math.ceil(n / 12)); // не больше ~12 подписей
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block' }}>
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} style={{ display: 'block', maxHeight: 240 }}>
       {/* сетка + ось Y */}
       {yTicks.map((v, i) => (
         <g key={i}>
-          <line x1={padL} x2={W - padR} y1={yOf(v)} y2={yOf(v)} stroke="#e2e8f0" strokeWidth="1" />
-          <text x={padL - 6} y={yOf(v) + 4} textAnchor="end" fontSize="11" fill="#64748b">
+          <line x1={padL} x2={W - padR} y1={yOf(v)} y2={yOf(v)} stroke="#e2e8f0" strokeWidth="0.6" />
+          <text x={padL - 5} y={yOf(v) + 3} textAnchor="end" fontSize="8" fill="#94a3b8">
             {v}
           </text>
         </g>
@@ -103,7 +103,7 @@ function LineChart({ data }: { data: Worklog }) {
       {/* подписи X */}
       {data.days.map((d, i) =>
         i % xStep === 0 ? (
-          <text key={i} x={xOf(i)} y={H - padB + 18} textAnchor="middle" fontSize="10" fill="#64748b">
+          <text key={i} x={xOf(i)} y={H - padB + 14} textAnchor="middle" fontSize="8" fill="#94a3b8">
             {ddmm(d)}
           </text>
         ) : null,
@@ -113,10 +113,18 @@ function LineChart({ data }: { data: Worklog }) {
         const path = e.perDay.map((v, i) => `${i === 0 ? 'M' : 'L'} ${xOf(i)} ${yOf(v)}`).join(' ');
         return (
           <g key={e.id}>
-            <path d={path} fill="none" stroke={e.color} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
-            {n <= 40 &&
+            <path
+              d={path}
+              fill="none"
+              stroke={e.color}
+              strokeWidth="1.6"
+              vectorEffect="non-scaling-stroke"
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            />
+            {n <= 31 &&
               e.perDay.map((v, i) => (
-                <circle key={i} cx={xOf(i)} cy={yOf(v)} r={n < 20 ? 3 : 2} fill="#fff" stroke={e.color} strokeWidth="1.6" />
+                <circle key={i} cx={xOf(i)} cy={yOf(v)} r="2.4" fill="#fff" stroke={e.color} strokeWidth="1" vectorEffect="non-scaling-stroke" />
               ))}
           </g>
         );
@@ -127,26 +135,26 @@ function LineChart({ data }: { data: Worklog }) {
 
 function BarChart({ data }: { data: Worklog }) {
   const emps = data.employees;
-  const W = 820,
-    H = 300,
-    padL = 44,
-    padR = 16,
-    padT = 14,
-    padB = 70;
+  const W = 1000,
+    H = 220,
+    padL = 34,
+    padR = 14,
+    padT = 12,
+    padB = 42;
   const iw = W - padL - padR,
     ih = H - padT - padB;
   const maxV = niceMax(Math.max(1, ...emps.map((e) => e.total)));
   const slot = iw / emps.length;
-  const bw = Math.min(56, slot * 0.6);
+  const bw = Math.min(46, slot * 0.55);
   const yOf = (v: number) => padT + ih - (v / maxV) * ih;
   const yTicks = [0, 0.25, 0.5, 0.75, 1].map((t) => Math.round(t * maxV * 100) / 100);
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block' }}>
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} style={{ display: 'block', maxHeight: 220 }}>
       {yTicks.map((v, i) => (
         <g key={i}>
-          <line x1={padL} x2={W - padR} y1={yOf(v)} y2={yOf(v)} stroke="#e2e8f0" strokeWidth="1" />
-          <text x={padL - 6} y={yOf(v) + 4} textAnchor="end" fontSize="11" fill="#64748b">
+          <line x1={padL} x2={W - padR} y1={yOf(v)} y2={yOf(v)} stroke="#e2e8f0" strokeWidth="0.6" />
+          <text x={padL - 5} y={yOf(v) + 3} textAnchor="end" fontSize="8" fill="#94a3b8">
             {v}
           </text>
         </g>
@@ -155,12 +163,12 @@ function BarChart({ data }: { data: Worklog }) {
         const cx = padL + slot * i + slot / 2;
         return (
           <g key={e.id}>
-            <rect x={cx - bw / 2} y={yOf(e.total)} width={bw} height={padT + ih - yOf(e.total)} rx="4" fill={e.color} />
-            <text x={cx} y={yOf(e.total) - 5} textAnchor="middle" fontSize="11" fontWeight="600" fill="#334155">
+            <rect x={cx - bw / 2} y={yOf(e.total)} width={bw} height={padT + ih - yOf(e.total)} rx="3" fill={e.color} />
+            <text x={cx} y={yOf(e.total) - 4} textAnchor="middle" fontSize="9" fontWeight="600" fill="#334155">
               {e.total}
             </text>
-            <text x={cx} y={H - padB + 16} textAnchor="middle" fontSize="10" fill="#64748b">
-              {e.name.length > 12 ? e.name.slice(0, 11) + '…' : e.name}
+            <text x={cx} y={H - padB + 14} textAnchor="middle" fontSize="8" fill="#94a3b8">
+              {e.name.length > 14 ? e.name.slice(0, 13) + '…' : e.name}
             </text>
           </g>
         );
