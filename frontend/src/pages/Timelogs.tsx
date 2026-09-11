@@ -4,11 +4,26 @@ import { api, TimeLog } from '../api';
 export default function Timelogs() {
   const [logs, setLogs] = useState<TimeLog[]>([]);
   const [q, setQ] = useState('');
+  const [editId, setEditId] = useState<number | null>(null);
+  const [eHours, setEHours] = useState('');
+  const [eNote, setENote] = useState('');
 
   const load = () => api.tasks.allLogs().then(setLogs);
   useEffect(() => {
     load();
   }, []);
+
+  const startEdit = (l: TimeLog) => {
+    setEditId(l.id);
+    setEHours(String(l.hours));
+    setENote(l.note || '');
+  };
+  const saveEdit = async () => {
+    if (editId == null) return;
+    await api.tasks.updateLog(editId, { hours: Number(eHours), note: eNote });
+    setEditId(null);
+    load();
+  };
 
   const filtered = logs.filter(
     (l) =>
@@ -69,13 +84,58 @@ export default function Timelogs() {
                   )}
                 </td>
                 <td>
-                  <b>{l.hours}</b> ч
+                  {editId === l.id ? (
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={eHours}
+                      onChange={(e) => setEHours(e.target.value)}
+                      style={{ width: 80 }}
+                    />
+                  ) : (
+                    <>
+                      <b>{l.hours}</b> ч
+                      {l.editedAt && (
+                        <div
+                          className="muted"
+                          style={{ fontSize: 11 }}
+                          title={`Изменил: ${l.editor?.name || '—'} · ${new Date(l.editedAt).toLocaleString('ru-RU')}${
+                            l.originalHours != null ? ` · было ${l.originalHours} ч` : ''
+                          }`}
+                        >
+                          ✏️ изменено{l.originalHours != null ? ` (было ${l.originalHours}ч)` : ''}
+                        </div>
+                      )}
+                    </>
+                  )}
                 </td>
-                <td className="muted">{l.note || ''}</td>
-                <td style={{ textAlign: 'right' }}>
-                  <button className="icon-btn danger" title="Удалить" onClick={() => remove(l.id)}>
-                    🗑
-                  </button>
+                <td className="muted">
+                  {editId === l.id ? (
+                    <input value={eNote} onChange={(e) => setENote(e.target.value)} style={{ width: '100%' }} />
+                  ) : (
+                    l.note || ''
+                  )}
+                </td>
+                <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  {editId === l.id ? (
+                    <>
+                      <button className="icon-btn primary" title="Сохранить" onClick={saveEdit}>
+                        ✓
+                      </button>
+                      <button className="icon-btn" title="Отмена" onClick={() => setEditId(null)}>
+                        ✕
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button className="icon-btn" title="Редактировать" onClick={() => startEdit(l)}>
+                        ✏️
+                      </button>
+                      <button className="icon-btn danger" title="Удалить" onClick={() => remove(l.id)}>
+                        🗑
+                      </button>
+                    </>
+                  )}
                 </td>
               </tr>
             ))}

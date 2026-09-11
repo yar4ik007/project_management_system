@@ -79,7 +79,24 @@ export class TasksService {
   listLogs() {
     return this.prisma.timeLog.findMany({
       orderBy: { date: 'desc' },
-      include: { employee: true, task: { include: { project: true } } },
+      include: { employee: true, editor: true, task: { include: { project: true } } },
+    });
+  }
+
+  // Правка таймлога со следом: кто/когда изменил и какие часы были изначально.
+  async updateLog(logId: number, data: { hours?: number; note?: string; date?: string }, editorId?: number) {
+    const log = await this.prisma.timeLog.findUniqueOrThrow({ where: { id: logId } });
+    const patch: any = { editedAt: new Date(), editedById: editorId ?? null };
+    if (data.hours !== undefined) {
+      patch.hours = Number(data.hours);
+      if (log.originalHours == null) patch.originalHours = log.hours; // фиксируем исходное при первой правке
+    }
+    if (data.note !== undefined) patch.note = data.note;
+    if (data.date !== undefined) patch.date = new Date(data.date);
+    return this.prisma.timeLog.update({
+      where: { id: logId },
+      data: patch,
+      include: { employee: true, editor: true, task: { include: { project: true } } },
     });
   }
 
@@ -149,6 +166,14 @@ export class TasksController {
     @Body() body: { employeeId: number; hours: number; date?: string; note?: string },
   ) {
     return this.svc.addLog(id, body);
+  }
+
+  @Admin() @Patch('logs/:logId') updateLog(
+    @Param('logId', ParseIntPipe) logId: number,
+    @Body() body: { hours?: number; note?: string; date?: string },
+    @Req() req: any,
+  ) {
+    return this.svc.updateLog(logId, body, req.user?.sub);
   }
 
   @Admin() @Delete('logs/:logId') removeLog(@Param('logId', ParseIntPipe) logId: number) {

@@ -111,6 +111,10 @@ export interface TimeLog {
   note?: string | null;
   employee?: Employee;
   task?: Task;
+  editedAt?: string | null;
+  editedById?: number | null;
+  editor?: Employee | null;
+  originalHours?: number | null;
 }
 
 export interface Assignment {
@@ -250,6 +254,8 @@ export const api = {
       req<TimeLog>(`/tasks/${id}/logs`, { method: 'POST', body: JSON.stringify(data) }),
     removeLog: (logId: number) => req<void>(`/tasks/logs/${logId}`, { method: 'DELETE' }),
     allLogs: () => req<TimeLog[]>('/tasks/logs'),
+    updateLog: (logId: number, data: { hours?: number; note?: string; date?: string }) =>
+      req<TimeLog>(`/tasks/logs/${logId}`, { method: 'PATCH', body: JSON.stringify(data) }),
   },
   assignments: {
     list: (from: string, to: string, employeeId?: number) =>

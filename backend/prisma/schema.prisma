@@ -73,7 +73,8 @@ model Employee {
   members      ProjectMember[]
   tasks        Task[]          @relation("assignee") // задачи, где сотрудник — исполнитель
   createdTasks Task[]          @relation("createdBy") // задачи, которые сотрудник создал
-  timeLogs     TimeLog[]
+  timeLogs     TimeLog[]       @relation("logAuthor")
+  editedLogs   TimeLog[]       @relation("logEditor")
   assignments Assignment[]
   absences    Absence[]
   trackings   TimeTracking[]
@@ -179,8 +180,14 @@ model TimeLog {
   note       String?
   createdAt  DateTime @default(now())
 
-  task     Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  // След правки: кто и когда отредактировал и какое было исходное значение часов.
+  editedAt      DateTime?
+  editedById    Int?
+  originalHours Float?
+
+  task     Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  employee Employee  @relation("logAuthor", fields: [employeeId], references: [id], onDelete: Cascade)
+  editor   Employee? @relation("logEditor", fields: [editedById], references: [id], onDelete: SetNull)
 }
 
 // Плановый слот в календаре: сотрудник работает над задачей с startAt по endAt.
