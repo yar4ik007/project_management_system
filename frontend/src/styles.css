@@ -395,6 +395,13 @@ label {
 .progress-wrap {
   margin-top: 6px;
 }
+.copyable {
+  cursor: copy;
+}
+.copyable:hover {
+  background: #f1f5f9;
+  border-radius: 6px;
+}
 /* login */
 .login-wrap {
   min-height: 100vh;

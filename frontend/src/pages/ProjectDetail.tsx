@@ -12,6 +12,7 @@ import {
   TASK_STATUS_LABEL,
 } from '../api';
 import { Modal, TASK_STATUS_COLOR, PRIORITY_COLOR } from '../ui';
+import TaskDetail from '../components/TaskDetail';
 
 export default function ProjectDetail() {
   const { id } = useParams();
@@ -21,6 +22,7 @@ export default function ProjectDetail() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [taskEdit, setTaskEdit] = useState<Partial<Task> | null>(null);
   const [logFor, setLogFor] = useState<Task | null>(null);
+  const [detailId, setDetailId] = useState<number | null>(null);
   const [addMember, setAddMember] = useState(false);
   const [trackings, setTrackings] = useState<Tracking[]>([]);
 
@@ -143,7 +145,9 @@ export default function ProjectDetail() {
                     <span className="badge" title="Приоритет: меньше — важнее">
                       P{t.priorityRank}
                     </span>{' '}
-                    {t.title}
+                    <span style={{ cursor: 'pointer' }} onClick={() => setDetailId(t.id)} title="Открыть: описание и вложения">
+                      {t.title}
+                    </span>
                   </td>
                   <td>
                     <span className="tag" style={{ background: TASK_STATUS_COLOR[t.status] }}>
@@ -296,6 +300,8 @@ export default function ProjectDetail() {
       {logFor && (
         <LogModal task={logFor} employees={employees} onClose={() => setLogFor(null)} onSaved={load} />
       )}
+
+      {detailId && <TaskDetail taskId={detailId} onClose={() => setDetailId(null)} onChanged={load} />}
 
       {addMember && (
         <Modal title="Добавить участника" onClose={() => setAddMember(false)}>

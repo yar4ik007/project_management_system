@@ -10,6 +10,7 @@ import { TrackingModule } from './tracking.module';
 import { BotsModule } from './bots.module';
 import { AuthModule } from './auth.module';
 import { SettingsModule } from './settings.module';
+import { AttachmentsModule } from './attachments.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { SettingsModule } from './settings.module';
     TrackingModule,
     BotsModule,
     SettingsModule,
+    AttachmentsModule,
   ],
 })
 export class AppModule {}

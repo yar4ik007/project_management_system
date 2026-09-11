@@ -79,6 +79,7 @@ model Employee {
   absences    Absence[]
   trackings   TimeTracking[]
   notes       Note[]
+  uploads     Attachment[]   @relation("uploader")
 }
 
 // Отдельная заметка сотрудника — своя запись, редактируется и удаляется независимо.
@@ -143,6 +144,7 @@ model Task {
   assignee    Employee?      @relation("assignee", fields: [assigneeId], references: [id], onDelete: SetNull)
   creator     Employee?      @relation("createdBy", fields: [createdById], references: [id], onDelete: SetNull)
   timeLogs    TimeLog[]
+  attachments Attachment[]
   assignments Assignment[]
   trackings   TimeTracking[]
 }
@@ -188,6 +190,22 @@ model TimeLog {
   task     Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
   employee Employee  @relation("logAuthor", fields: [employeeId], references: [id], onDelete: Cascade)
   editor   Employee? @relation("logEditor", fields: [editedById], references: [id], onDelete: SetNull)
+}
+
+// Вложение к задаче (фото/документ). Файл лежит на диске, доступ по token.
+model Attachment {
+  id           Int      @id @default(autoincrement())
+  taskId       Int
+  filename     String // исходное имя файла
+  storedPath   String // путь на диске
+  mimeType     String
+  size         Int
+  token        String   @unique // публичная ссылка /files/:token
+  uploadedById Int?
+  createdAt    DateTime @default(now())
+
+  task     Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  uploader Employee? @relation("uploader", fields: [uploadedById], references: [id], onDelete: SetNull)
 }
 
 // Плановый слот в календаре: сотрудник работает над задачей с startAt по endAt.

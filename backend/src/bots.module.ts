@@ -1,12 +1,17 @@
 import { Injectable, Module, OnModuleInit } from '@nestjs/common';
 import { EmployeeRole } from '@prisma/client';
-import { Bot, InlineKeyboard } from 'grammy';
+import { Bot, InlineKeyboard, InputFile } from 'grammy';
 import * as bcrypt from 'bcryptjs';
+import { randomUUID } from 'crypto';
+import { extname, join } from 'path';
+import { existsSync, mkdirSync, promises as fsp } from 'fs';
 import { PrismaService } from './prisma.service';
 import { TrackingModule, TrackingService, liveSec } from './tracking.module';
 import { DashboardModule, DashboardService } from './dashboard.module';
 
 const ADMIN_BOT_KEY = 'adminBotToken';
+const UPLOAD_DIR = process.env.UPLOAD_DIR || 'uploads';
+if (!existsSync(UPLOAD_DIR)) mkdirSync(UPLOAD_DIR, { recursive: true });
 const ROLES: { v: EmployeeRole; label: string }[] = [
   { v: 'OPERATOR', label: 'Оператор' },
   { v: 'MANAGER', label: 'Руководитель' },
@@ -45,6 +50,8 @@ export class BotsService implements OnModuleInit {
   private awaitingNote = new Map<number, number>(); // tgId -> employeeId (ждём текст заметки)
   private awaitingEstimate = new Map<number, { taskId: number; employeeId: number }>(); // ждём оценку задачи
   private awaitingLogEdit = new Map<number, { logId: number; taskId: number; employeeId: number }>(); // ждём новые часы лога
+  private awaitingDesc = new Map<number, { taskId: number; employeeId: number }>(); // ждём текст описания
+  private awaitingAttach = new Map<number, { taskId: number; employeeId: number }>(); // ждём файл/фото
   private adminBot?: Bot; // главный админ-бот
   private adminState = new Map<number, any>(); // tgId -> состояние диалога админ-бота
 
@@ -586,6 +593,60 @@ export class BotsService implements OnModuleInit {
       await ctx.reply(`Текущее: ${log.hours} ч. Введите новые часы (дробью, напр. 1.25):`);
     });
 
+    // Описание задачи
+    bot.callbackQuery(/^desc:(\d+)$/, async (ctx) => {
+      const emp = await withAccess(ctx);
+      await ctx.answerCallbackQuery();
+      if (!emp) return;
+      this.awaitingDesc.set(ctx.from.id, { taskId: Number(ctx.match![1]), employeeId: emp.id });
+      await ctx.reply('Пришлите новое описание задачи одним сообщением:');
+    });
+    // Прикрепить файл/фото
+    bot.callbackQuery(/^attach:(\d+)$/, async (ctx) => {
+      const emp = await withAccess(ctx);
+      await ctx.answerCallbackQuery();
+      if (!emp) return;
+      this.awaitingAttach.set(ctx.from.id, { taskId: Number(ctx.match![1]), employeeId: emp.id });
+      await ctx.reply('Пришлите фото или документ — приложу к задаче.');
+    });
+    // Показать вложения
+    bot.callbackQuery(/^files:(\d+)$/, async (ctx) => {
+      const emp = await withAccess(ctx);
+      await ctx.answerCallbackQuery();
+      if (!emp) return;
+      const atts = await this.prisma.attachment.findMany({ where: { taskId: Number(ctx.match![1]) }, orderBy: { createdAt: 'desc' } });
+      if (!atts.length) return ctx.reply('Вложений нет.');
+      for (const a of atts) {
+        try {
+          if (a.mimeType.startsWith('image/')) await ctx.replyWithPhoto(new InputFile(a.storedPath), { caption: a.filename });
+          else await ctx.replyWithDocument(new InputFile(a.storedPath), { caption: a.filename });
+        } catch {
+          /* ignore */
+        }
+      }
+    });
+
+    // Приём фото
+    bot.on('message:photo', async (ctx) => {
+      const st = this.awaitingAttach.get(ctx.from.id);
+      if (!st) return;
+      this.awaitingAttach.delete(ctx.from.id);
+      const photo = ctx.message.photo[ctx.message.photo.length - 1];
+      await this.saveTelegramFile(bot.token, ctx, photo.file_id, `photo-${Date.now()}.jpg`, 'image/jpeg', st.taskId, st.employeeId);
+      await ctx.reply('📎 Фото приложено к задаче.');
+      await this.openTask(ctx, st.employeeId, st.taskId, false);
+    });
+    // Приём документа
+    bot.on('message:document', async (ctx) => {
+      const st = this.awaitingAttach.get(ctx.from.id);
+      if (!st) return;
+      this.awaitingAttach.delete(ctx.from.id);
+      const doc = ctx.message.document;
+      await this.saveTelegramFile(bot.token, ctx, doc.file_id, doc.file_name || `file-${Date.now()}`, doc.mime_type || 'application/octet-stream', st.taskId, st.employeeId);
+      await ctx.reply('📎 Документ приложен к задаче.');
+      await this.openTask(ctx, st.employeeId, st.taskId, false);
+    });
+
     // Трекинг — кнопки внутри задачи; после действия обновляем карточку задачи.
     const act =
       (fn: 'start' | 'pause' | 'stop') =>
@@ -631,6 +692,14 @@ export class BotsService implements OnModuleInit {
         return this.sendTaskLogs(ctx, le.employeeId, le.taskId, false);
       }
 
+      const desc = this.awaitingDesc.get(ctx.from.id);
+      if (desc) {
+        this.awaitingDesc.delete(ctx.from.id);
+        await this.prisma.task.update({ where: { id: desc.taskId }, data: { description: text } });
+        await ctx.reply('✅ Описание обновлено.');
+        return this.openTask(ctx, desc.employeeId, desc.taskId, false);
+      }
+
       const est = this.awaitingEstimate.get(ctx.from.id);
       if (est) {
         this.awaitingEstimate.delete(ctx.from.id);
@@ -657,7 +726,12 @@ export class BotsService implements OnModuleInit {
   private async openTask(ctx: any, employeeId: number, taskId: number, edit = false) {
     const t = await this.prisma.task.findUnique({
       where: { id: taskId },
-      include: { project: true, timeLogs: { select: { hours: true } }, trackings: { where: { employeeId } } },
+      include: {
+        project: true,
+        timeLogs: { select: { hours: true } },
+        trackings: { where: { employeeId } },
+        attachments: { select: { id: true } },
+      },
     });
     if (!t) return;
     const spent = t.timeLogs.reduce((s, l) => s + l.hours, 0);
@@ -670,12 +744,14 @@ export class BotsService implements OnModuleInit {
     if (running) kb.text('⏸ Пауза', `pause:${t.id}`).text('⏹ Стоп', `stop:${t.id}`).row();
     else kb.text(paused ? '▶️ Продолжить' : '▶️ Старт', `start:${t.id}`).row();
     kb.text('📝 Оценить', `est:${t.id}`).text('🕓 Записи времени', `logs:${t.id}`).row();
+    kb.text('✏️ Описание', `desc:${t.id}`).text('📎 Прикрепить', `attach:${t.id}`).row();
+    if (t.attachments.length) kb.text(`📎 Вложения (${t.attachments.length})`, `files:${t.id}`).row();
     kb.text('⬅️ К задачам', 'tasks');
 
     const text =
       `📂 #${t.id} ${t.title}\n` +
       `Проект: ${t.project?.name}\n` +
-      (t.description ? `\n${t.description}\n` : '') +
+      (t.description ? `\n${t.description}\n` : '\n(описание не задано)\n') +
       `\nПриоритет: P${t.priorityRank} · статус: ${STATUS_RU[t.status]}\n` +
       `Оценка: ${t.estimateHours ? `${t.estimateHours} ч` : '— не задана (нажмите «Оценить») —'}\n` +
       `Отработано: ${spent.toFixed(2)} ч (${Math.round(spent * 60)} мин)` +
@@ -703,6 +779,32 @@ export class BotsService implements OnModuleInit {
     });
     await this.prisma.projectMember.create({ data: { employeeId: emp.id, projectId } }).catch(() => {});
     return emp;
+  }
+
+  // Скачать файл из Telegram и приложить к задаче.
+  private async saveTelegramFile(
+    token: string,
+    ctx: any,
+    fileId: string,
+    origName: string,
+    mimeType: string,
+    taskId: number,
+    employeeId: number,
+  ) {
+    try {
+      const file = await ctx.api.getFile(fileId);
+      const res = await fetch(`https://api.telegram.org/file/bot${token}/${file.file_path}`);
+      const buf = Buffer.from(await res.arrayBuffer());
+      const ext = extname(file.file_path || origName || '') || '';
+      const stored = `${randomUUID()}${ext}`;
+      const full = join(UPLOAD_DIR, stored);
+      await fsp.writeFile(full, buf);
+      await this.prisma.attachment.create({
+        data: { taskId, filename: origName, storedPath: full, mimeType, size: buf.length, token: stored, uploadedById: employeeId },
+      });
+    } catch (e: any) {
+      console.warn('[bot] не смог сохранить вложение:', e.message);
+    }
   }
 
   // Записи времени сотрудника по задаче — с возможностью правки (со следом).

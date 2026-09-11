@@ -22,6 +22,9 @@ services:
       DATABASE_URL: "postgresql://pms:pms@postgres:5432/pms?schema=public"
       PORT: "3002"
       CORS_ORIGIN: "https://eyeofboss.ru,https://www.eyeofboss.ru"
+      UPLOAD_DIR: "/app/uploads"
+    volumes:
+      - pms_uploads:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -50,5 +53,6 @@ services:
 
 volumes:
   pms_pgdata:
+  pms_uploads:
   caddy_data:
   caddy_config:

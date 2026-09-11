@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Injectable,
   Module,
@@ -69,6 +70,15 @@ export class TasksService {
 
   update(id: number, data: Partial<TaskInput>) {
     return this.prisma.task.update({ where: { id }, data: this.clean(data) });
+  }
+
+  // Правка описания задачи: доступна админу или исполнителю.
+  async updateDescription(id: number, description: string, user: any) {
+    if (!user?.isAdmin) {
+      const t = await this.prisma.task.findUnique({ where: { id } });
+      if (!t || t.assigneeId !== user?.sub) throw new ForbiddenException('Только исполнитель задачи или администратор');
+    }
+    return this.prisma.task.update({ where: { id }, data: { description } });
   }
 
   remove(id: number) {
@@ -155,6 +165,15 @@ export class TasksController {
 
   @Admin() @Patch(':id') update(@Param('id', ParseIntPipe) id: number, @Body() body: Partial<TaskInput>) {
     return this.svc.update(id, body);
+  }
+
+  // Описание правит исполнитель или админ (без @Admin, с проверкой внутри)
+  @Patch(':id/description') updateDescription(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { description: string },
+    @Req() req: any,
+  ) {
+    return this.svc.updateDescription(id, body.description, req.user);
   }
 
   @Admin() @Delete(':id') remove(@Param('id', ParseIntPipe) id: number) {

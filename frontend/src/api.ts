@@ -150,6 +150,18 @@ export interface Tracking {
   task?: Task;
 }
 
+export interface Attachment {
+  id: number;
+  taskId: number;
+  filename: string;
+  mimeType: string;
+  size: number;
+  url: string;
+  isImage: boolean;
+  uploader?: Employee | null;
+  createdAt: string;
+}
+
 export interface Worklog {
   from: string;
   to: string;
@@ -249,6 +261,8 @@ export const api = {
     create: (data: Partial<Task>) => req<Task>('/tasks', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: number, data: Partial<Task>) =>
       req<Task>(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    updateDescription: (id: number, description: string) =>
+      req<Task>(`/tasks/${id}/description`, { method: 'PATCH', body: JSON.stringify({ description }) }),
     remove: (id: number) => req<void>(`/tasks/${id}`, { method: 'DELETE' }),
     addLog: (id: number, data: { employeeId: number; hours: number; date?: string; note?: string }) =>
       req<TimeLog>(`/tasks/${id}/logs`, { method: 'POST', body: JSON.stringify(data) }),
@@ -288,6 +302,30 @@ export const api = {
       req<Capacity>(`/dashboard/capacity${from && to ? `?from=${from}&to=${to}` : ''}`),
     worklog: (from?: string, to?: string) =>
       req<Worklog>(`/dashboard/worklog${from && to ? `?from=${from}&to=${to}` : ''}`),
+  },
+  attachments: {
+    list: (taskId: number) => req<Attachment[]>(`/tasks/${taskId}/attachments`),
+    upload: async (taskId: number, file: File) => {
+      const fd = new FormData();
+      fd.append('file', file);
+      const token = getToken();
+      const res = await fetch(`/api/tasks/${taskId}/attachments`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: fd,
+      });
+      if (!res.ok) {
+        let msg = res.statusText;
+        try {
+          msg = (await res.json()).message || msg;
+        } catch {
+          /* ignore */
+        }
+        throw new Error(msg);
+      }
+      return res.json() as Promise<Attachment>;
+    },
+    remove: (id: number) => req<void>(`/attachments/${id}`, { method: 'DELETE' }),
   },
   settings: {
     get: () => req<{ adminBotToken: string | null; adminBotUsername: string | null }>('/settings'),

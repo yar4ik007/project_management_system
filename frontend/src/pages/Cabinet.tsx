@@ -4,6 +4,7 @@ import { api, Assignment, Employee, Note, Task, Tracking, roleLabel, TASK_STATUS
 import { useActingAs } from '../impersonation';
 import { useAuth } from '../auth';
 import { TASK_STATUS_COLOR, fmtTime } from '../ui';
+import TaskDetail from '../components/TaskDetail';
 
 export default function Cabinet() {
   const actingAs = useActingAs();
@@ -13,6 +14,7 @@ export default function Cabinet() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [trackings, setTrackings] = useState<Tracking[]>([]);
   const [plan, setPlan] = useState<Assignment[]>([]);
+  const [detailId, setDetailId] = useState<number | null>(null);
 
   const load = async () => {
     if (!effectiveId) return;
@@ -69,7 +71,10 @@ export default function Cabinet() {
               <div key={t.id} style={{ padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
                 <div className="flex-between">
                   <div>
-                    <span className="badge">P{t.priorityRank}</span> <b>{t.title}</b>
+                    <span className="badge">P{t.priorityRank}</span>{' '}
+                    <b style={{ cursor: 'pointer' }} onClick={() => setDetailId(t.id)} title="Открыть задачу">
+                      {t.title}
+                    </b>
                     <div className="muted" style={{ fontSize: 12 }}>
                       <span className="tag" style={{ background: t.project?.color }}>
                         {t.project?.code}
@@ -127,6 +132,8 @@ export default function Cabinet() {
           </div>
         </div>
       </div>
+
+      {detailId && <TaskDetail taskId={detailId} onClose={() => setDetailId(null)} onChanged={load} />}
     </div>
   );
 }
