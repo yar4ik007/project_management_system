@@ -300,8 +300,14 @@ export const api = {
   dashboard: {
     capacity: (from?: string, to?: string) =>
       req<Capacity>(`/dashboard/capacity${from && to ? `?from=${from}&to=${to}` : ''}`),
-    worklog: (from?: string, to?: string) =>
-      req<Worklog>(`/dashboard/worklog${from && to ? `?from=${from}&to=${to}` : ''}`),
+    worklog: (from?: string, to?: string, projectId?: number) => {
+      const p = new URLSearchParams();
+      if (from) p.set('from', from);
+      if (to) p.set('to', to);
+      if (projectId) p.set('projectId', String(projectId));
+      const qs = p.toString();
+      return req<Worklog>(`/dashboard/worklog${qs ? `?${qs}` : ''}`);
+    },
   },
   attachments: {
     list: (taskId: number) => req<Attachment[]>(`/tasks/${taskId}/attachments`),

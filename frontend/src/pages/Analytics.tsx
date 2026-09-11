@@ -7,16 +7,18 @@ const ddmm = (s: string) => {
   return `${d}.${m}`;
 };
 
-// Блок аналитики отработанного времени — встраивается в Дашборд.
-export default function WorklogCharts() {
+// Блок аналитики отработанного времени — встраивается в Дашборд и в карточку проекта.
+export default function WorklogCharts({ projectId }: { projectId?: number }) {
   const [data, setData] = useState<Worklog | null>(null);
   const today = new Date();
   const [from, setFrom] = useState(ymd(new Date(today.getTime() - 13 * 864e5)));
   const [to, setTo] = useState(ymd(today));
 
   useEffect(() => {
-    api.dashboard.worklog(new Date(from).toISOString(), new Date(to + 'T23:59:59').toISOString()).then(setData);
-  }, [from, to]);
+    api.dashboard
+      .worklog(new Date(from).toISOString(), new Date(to + 'T23:59:59').toISOString(), projectId)
+      .then(setData);
+  }, [from, to, projectId]);
 
   return (
     <div className="card">

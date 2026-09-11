@@ -13,6 +13,7 @@ import {
 } from '../api';
 import { Modal, TASK_STATUS_COLOR, PRIORITY_COLOR } from '../ui';
 import TaskDetail from '../components/TaskDetail';
+import WorklogCharts from './Analytics';
 
 export default function ProjectDetail() {
   const { id } = useParams();
@@ -38,6 +39,7 @@ export default function ProjectDetail() {
 
   const trackerFor = (t: Task) =>
     trackings.find((tr) => tr.taskId === t.id && tr.employeeId === t.assigneeId);
+  const projectTrackings = trackings.filter((tr) => tr.task?.projectId === pid);
   const track = async (fn: 'start' | 'pause' | 'stop', t: Task) => {
     if (!t.assigneeId) {
       alert('У задачи нет исполнителя — назначьте его, чтобы трекать время.');
@@ -217,6 +219,25 @@ export default function ProjectDetail() {
           </tbody>
         </table>
       </div>
+
+      <div className="card">
+        <h3>🟢 Сейчас в работе по проекту</h3>
+        {projectTrackings.length === 0 && <p className="muted">Никто сейчас не трекает время по проекту.</p>}
+        {projectTrackings.map((tr) => (
+          <div
+            key={tr.id}
+            className="flex-between"
+            style={{ padding: '8px 0', borderBottom: '1px solid var(--border)' }}
+          >
+            <div>
+              {tr.state === 'RUNNING' ? '🟢' : '⏸'} <b>{tr.employee?.name}</b> — {tr.task?.title}
+            </div>
+            <span className="muted">{tr.state === 'RUNNING' ? 'идёт' : 'на паузе'}</span>
+          </div>
+        ))}
+      </div>
+
+      <WorklogCharts projectId={pid} />
 
       {taskEdit && (
         <Modal title={taskEdit.id ? 'Редактировать задачу' : 'Новая задача'} onClose={() => setTaskEdit(null)}>

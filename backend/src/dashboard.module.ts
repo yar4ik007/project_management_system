@@ -20,8 +20,8 @@ function workdays(from: Date, to: Date): Date[] {
 export class DashboardService {
   constructor(private prisma: PrismaService) {}
 
-  // Отработанные часы по сотрудникам и дням (для графиков).
-  async worklog(fromStr?: string, toStr?: string) {
+  // Отработанные часы по сотрудникам и дням (для графиков). projectId — фильтр по проекту.
+  async worklog(fromStr?: string, toStr?: string, projectId?: number) {
     const from = fromStr ? new Date(fromStr) : new Date(Date.now() - 13 * 24 * HOURS);
     const to = toStr ? new Date(toStr) : new Date();
     const fromDay = new Date(from.getFullYear(), from.getMonth(), from.getDate());
@@ -33,7 +33,10 @@ export class DashboardService {
     const dayIndex = new Map(days.map((d, i) => [d, i]));
 
     const logs = await this.prisma.timeLog.findMany({
-      where: { date: { gte: fromDay, lt: new Date(toDay.getTime() + 24 * HOURS) } },
+      where: {
+        date: { gte: fromDay, lt: new Date(toDay.getTime() + 24 * HOURS) },
+        ...(projectId ? { task: { projectId } } : {}),
+      },
       select: { employeeId: true, date: true, hours: true, employee: { select: { name: true, hidden: true } } },
     });
 
@@ -181,8 +184,12 @@ export class DashboardController {
     return this.svc.capacity(from, to);
   }
 
-  @Admin() @Get('worklog') worklog(@Query('from') from?: string, @Query('to') to?: string) {
-    return this.svc.worklog(from, to);
+  @Admin() @Get('worklog') worklog(
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('projectId') projectId?: string,
+  ) {
+    return this.svc.worklog(from, to, projectId ? Number(projectId) : undefined);
   }
 }
 
