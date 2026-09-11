@@ -44,6 +44,7 @@ export class BotsService implements OnModuleInit {
   private bots = new Map<number, Bot>(); // projectId -> bot
   private awaitingNote = new Map<number, number>(); // tgId -> employeeId (ждём текст заметки)
   private awaitingEstimate = new Map<number, { taskId: number; employeeId: number }>(); // ждём оценку задачи
+  private awaitingLogEdit = new Map<number, { logId: number; taskId: number; employeeId: number }>(); // ждём новые часы лога
   private adminBot?: Bot; // главный админ-бот
   private adminState = new Map<number, any>(); // tgId -> состояние диалога админ-бота
 
@@ -568,6 +569,23 @@ export class BotsService implements OnModuleInit {
       await ctx.reply('Введите оценку задачи в часах (можно дробью, напр. 1.5 или 0.5):');
     });
 
+    // Записи времени по задаче (с правкой)
+    bot.callbackQuery(/^logs:(\d+)$/, async (ctx) => {
+      const emp = await withAccess(ctx);
+      await ctx.answerCallbackQuery();
+      if (emp) await this.sendTaskLogs(ctx, emp.id, Number(ctx.match![1]), true);
+    });
+    bot.callbackQuery(/^logedit:(\d+)$/, async (ctx) => {
+      const emp = await withAccess(ctx);
+      if (!emp) return;
+      const logId = Number(ctx.match![1]);
+      const log = await this.prisma.timeLog.findUnique({ where: { id: logId } });
+      if (!log || log.employeeId !== emp.id) return ctx.answerCallbackQuery('Это не ваша запись');
+      await ctx.answerCallbackQuery();
+      this.awaitingLogEdit.set(ctx.from.id, { logId, taskId: log.taskId, employeeId: emp.id });
+      await ctx.reply(`Текущее: ${log.hours} ч. Введите новые часы (дробью, напр. 1.25):`);
+    });
+
     // Трекинг — кнопки внутри задачи; после действия обновляем карточку задачи.
     const act =
       (fn: 'start' | 'pause' | 'stop') =>
@@ -584,10 +602,34 @@ export class BotsService implements OnModuleInit {
     bot.callbackQuery(/^pause:(\d+)$/, act('pause'));
     bot.callbackQuery(/^stop:(\d+)$/, act('stop'));
 
-    // Приём текста: сначала оценка задачи, затем заметки. Команды не трогаем.
+    // Приём текста: правка лога, оценка задачи, затем заметки. Команды не трогаем.
     bot.on('message:text', async (ctx, next) => {
       const text = ctx.message.text;
       if (text.startsWith('/')) return next();
+
+      const le = this.awaitingLogEdit.get(ctx.from.id);
+      if (le) {
+        this.awaitingLogEdit.delete(ctx.from.id);
+        const val = Number(text.replace(',', '.').trim());
+        if (isNaN(val) || val < 0) {
+          await ctx.reply('Не понял число. Откройте запись и попробуйте снова.');
+          return;
+        }
+        const log = await this.prisma.timeLog.findUnique({ where: { id: le.logId } });
+        if (log && log.employeeId === le.employeeId) {
+          await this.prisma.timeLog.update({
+            where: { id: le.logId },
+            data: {
+              hours: Math.round(val * 100) / 100,
+              editedAt: new Date(),
+              editedById: le.employeeId, // след: правил сам работник
+              originalHours: log.originalHours ?? log.hours,
+            },
+          });
+          await ctx.reply(`✅ Запись обновлена: ${val} ч (сохранён след правки).`);
+        }
+        return this.sendTaskLogs(ctx, le.employeeId, le.taskId, false);
+      }
 
       const est = this.awaitingEstimate.get(ctx.from.id);
       if (est) {
@@ -627,7 +669,7 @@ export class BotsService implements OnModuleInit {
     const kb = new InlineKeyboard();
     if (running) kb.text('⏸ Пауза', `pause:${t.id}`).text('⏹ Стоп', `stop:${t.id}`).row();
     else kb.text(paused ? '▶️ Продолжить' : '▶️ Старт', `start:${t.id}`).row();
-    kb.text('📝 Оценить', `est:${t.id}`).row();
+    kb.text('📝 Оценить', `est:${t.id}`).text('🕓 Записи времени', `logs:${t.id}`).row();
     kb.text('⬅️ К задачам', 'tasks');
 
     const text =
@@ -661,6 +703,24 @@ export class BotsService implements OnModuleInit {
     });
     await this.prisma.projectMember.create({ data: { employeeId: emp.id, projectId } }).catch(() => {});
     return emp;
+  }
+
+  // Записи времени сотрудника по задаче — с возможностью правки (со следом).
+  private async sendTaskLogs(ctx: any, employeeId: number, taskId: number, edit = false) {
+    const task = await this.prisma.task.findUnique({ where: { id: taskId } });
+    const logs = await this.prisma.timeLog.findMany({ where: { taskId, employeeId }, orderBy: { date: 'desc' } });
+    const kb = new InlineKeyboard();
+    logs.forEach((l) => {
+      const d = new Date(l.date);
+      const dd = `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}`;
+      kb.text(`✏️ ${dd} · ${l.hours}ч${l.editedAt ? ' (изм.)' : ''}`, `logedit:${l.id}`).row();
+    });
+    kb.text('⬅️ К задаче', `open:${taskId}`);
+    const total = Math.round(logs.reduce((s, l) => s + l.hours, 0) * 100) / 100;
+    const text = logs.length
+      ? `🕓 Ваши записи времени · ${task?.title}\nВсего: ${total} ч\n\nНажмите запись, чтобы изменить часы:`
+      : `🕓 По задаче «${task?.title}» у вас пока нет записей.\nЗапустите таймер ▶️ — время запишется.`;
+    return edit ? ctx.editMessageText(text, { reply_markup: kb }).catch(() => {}) : ctx.reply(text, { reply_markup: kb });
   }
 
   private async sendNotes(ctx: any, employeeId: number, edit = false) {
