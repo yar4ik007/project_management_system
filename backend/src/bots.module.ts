@@ -789,10 +789,9 @@ export class BotsService implements OnModuleInit {
 
     const done = t.status === 'DONE';
     const kb = new InlineKeyboard();
-    if (!done) {
-      if (running) kb.text('⏸ Пауза', `pause:${t.id}`).text('⏹ Стоп', `stop:${t.id}`).row();
-      else kb.text(paused ? '▶️ Продолжить' : '▶️ Старт', `start:${t.id}`).row();
-    }
+    // Кнопки трекинга есть всегда — «Старт» по завершённой задаче вернёт её в работу.
+    if (running) kb.text('⏸ Пауза', `pause:${t.id}`).text('⏹ Стоп', `stop:${t.id}`).row();
+    else kb.text(done ? '▶️ Вернуть в работу' : paused ? '▶️ Продолжить' : '▶️ Старт', `start:${t.id}`).row();
     kb.text('📝 Оценить', `est:${t.id}`).text('🕓 Записи времени', `logs:${t.id}`).row();
     kb.text('✏️ Описание', `desc:${t.id}`).text('📎 Прикрепить', `attach:${t.id}`).row();
     if (t.attachments.length) kb.text(`📎 Вложения (${t.attachments.length})`, `files:${t.id}`).row();
