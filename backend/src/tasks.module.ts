@@ -16,6 +16,7 @@ import {
 import { TaskPriority, TaskStatus } from '@prisma/client';
 import { PrismaService } from './prisma.service';
 import { Admin } from './auth.module';
+import { TrackingModule, TrackingService } from './tracking.module';
 
 type TaskInput = {
   projectId: number;
@@ -38,7 +39,10 @@ const withSpent = <T extends { timeLogs: { hours: number }[] }>(t: T) => {
 
 @Injectable()
 export class TasksService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private tracking: TrackingService,
+  ) {}
 
   async list(projectId?: number, assigneeId?: number) {
     const tasks = await this.prisma.task.findMany({
@@ -68,8 +72,11 @@ export class TasksService {
     return this.prisma.task.create({ data: this.clean(data) as any });
   }
 
-  update(id: number, data: Partial<TaskInput>) {
-    return this.prisma.task.update({ where: { id }, data: this.clean(data) });
+  async update(id: number, data: Partial<TaskInput>) {
+    const t = await this.prisma.task.update({ where: { id }, data: this.clean(data) });
+    // Задача завершена — снимаем трекеры (иначе висит «на паузе»).
+    if (data.status === 'DONE') await this.tracking.stopAllForTask(id);
+    return t;
   }
 
   // Правка описания задачи: доступна админу или исполнителю.
@@ -200,5 +207,5 @@ export class TasksController {
   }
 }
 
-@Module({ controllers: [TasksController], providers: [TasksService, PrismaService] })
+@Module({ imports: [TrackingModule], controllers: [TasksController], providers: [TasksService, PrismaService] })
 export class TasksModule {}

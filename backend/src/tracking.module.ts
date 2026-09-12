@@ -60,8 +60,18 @@ export class TrackingService {
     return { taskId, employeeId, loggedHours: hours };
   }
 
+  // Остановить все трекеры задачи (напр. при переводе в «Готово»): зафиксировать время и снять.
+  async stopAllForTask(taskId: number) {
+    const list = await this.prisma.timeTracking.findMany({ where: { taskId } });
+    for (const t of list) {
+      await this.commitSegment(t);
+      await this.prisma.timeTracking.delete({ where: { id: t.id } });
+    }
+  }
+
   async active() {
     const list = await this.prisma.timeTracking.findMany({
+      where: { NOT: { task: { status: 'DONE' } } }, // трекеры завершённых задач не показываем
       orderBy: [{ state: 'asc' }, { updatedAt: 'desc' }],
       include: { employee: true, task: { include: { project: true } } },
     });

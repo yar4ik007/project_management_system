@@ -328,10 +328,12 @@ export class BotsService implements OnModuleInit {
     });
     bot.callbackQuery(/^a_setst:(\d+):(\w+)$/, async (ctx) => {
       if (!(await this.findAdmin(ctx.from.id))) return ctx.answerCallbackQuery('Нет доступа');
+      const status = ctx.match![2];
       const t = await this.prisma.task.update({
         where: { id: Number(ctx.match![1]) },
-        data: { status: ctx.match![2] as any },
+        data: { status: status as any },
       });
+      if (status === 'DONE') await this.tracking.stopAllForTask(t.id);
       await ctx.answerCallbackQuery('Статус обновлён');
       await this.adminProjectTasks(ctx, t.projectId, true);
     });
@@ -785,9 +787,12 @@ export class BotsService implements OnModuleInit {
     const paused = tr?.state === 'PAUSED';
     const live = tr ? liveSec(tr) : 0;
 
+    const done = t.status === 'DONE';
     const kb = new InlineKeyboard();
-    if (running) kb.text('⏸ Пауза', `pause:${t.id}`).text('⏹ Стоп', `stop:${t.id}`).row();
-    else kb.text(paused ? '▶️ Продолжить' : '▶️ Старт', `start:${t.id}`).row();
+    if (!done) {
+      if (running) kb.text('⏸ Пауза', `pause:${t.id}`).text('⏹ Стоп', `stop:${t.id}`).row();
+      else kb.text(paused ? '▶️ Продолжить' : '▶️ Старт', `start:${t.id}`).row();
+    }
     kb.text('📝 Оценить', `est:${t.id}`).text('🕓 Записи времени', `logs:${t.id}`).row();
     kb.text('✏️ Описание', `desc:${t.id}`).text('📎 Прикрепить', `attach:${t.id}`).row();
     if (t.attachments.length) kb.text(`📎 Вложения (${t.attachments.length})`, `files:${t.id}`).row();
@@ -800,7 +805,7 @@ export class BotsService implements OnModuleInit {
       `\nПриоритет: P${t.priorityRank} · статус: ${STATUS_RU[t.status]}\n` +
       `Оценка: ${t.estimateHours ? `${t.estimateHours} ч` : '— не задана (нажмите «Оценить») —'}\n` +
       `Отработано: ${spent.toFixed(2)} ч (${Math.round(spent * 60)} мин)` +
-      (running ? `\n🟢 Идёт сейчас: ${fmtDur(live)}` : paused ? `\n⏸ На паузе` : '');
+      (done ? '\n✅ Задача завершена' : running ? `\n🟢 Идёт сейчас: ${fmtDur(live)}` : paused ? `\n⏸ На паузе` : '');
 
     return edit
       ? ctx.editMessageText(text, { reply_markup: kb }).catch(() => ctx.reply(text, { reply_markup: kb }))
@@ -898,7 +903,7 @@ export class BotsService implements OnModuleInit {
       if (!group.length) continue;
       lines.push(`\n${s.icon} ${s.label} (${group.length}):`);
       for (const t of group) {
-        const tr = t.trackings[0];
+        const tr = t.status === 'DONE' ? null : t.trackings[0];
         const mark = tr?.state === 'RUNNING' ? '🟢' : tr?.state === 'PAUSED' ? '⏸' : '';
         lines.push(`  #${t.id} P${t.priorityRank} · ${t.title} ${mark}`);
         kb.text(`${s.icon} #${t.id} ${t.title.slice(0, 22)}`, `open:${t.id}`).row();
