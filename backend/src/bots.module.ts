@@ -41,6 +41,14 @@ const STATUS_RU: Record<string, string> = {
   REVIEW: 'на ревью',
   DONE: 'готово',
 };
+// Порядок и иконки статусов для группировки в боте.
+const STATUS_ORDER: { v: string; icon: string; label: string }[] = [
+  { v: 'IN_PROGRESS', icon: '🔵', label: 'В работе' },
+  { v: 'TODO', icon: '⚪️', label: 'В очереди' },
+  { v: 'REVIEW', icon: '🟡', label: 'На ревью' },
+  { v: 'BLOCKED', icon: '🔴', label: 'Заблокированы' },
+  { v: 'DONE', icon: '🟢', label: 'Готово' },
+];
 
 /**
  * Менеджер Telegram-ботов: по боту на проект (токен в настройках проекта).
@@ -565,7 +573,14 @@ export class BotsService implements OnModuleInit {
     bot.callbackQuery('tasks', async (ctx) => {
       const emp = await withAccess(ctx);
       await ctx.answerCallbackQuery();
-      if (emp) await this.sendTasks(ctx, projectId, emp.id);
+      if (emp) await this.sendTasks(ctx, projectId, emp.id, true);
+    });
+
+    // Все задачи по статусам
+    bot.callbackQuery('bystatus', async (ctx) => {
+      const emp = await withAccess(ctx);
+      await ctx.answerCallbackQuery();
+      if (emp) await this.sendTasksByStatus(ctx, projectId, emp.id, true);
     });
 
     // Заметки сотрудника — список отдельных записей
@@ -868,6 +883,34 @@ export class BotsService implements OnModuleInit {
       : ctx.reply(text, { reply_markup: kb });
   }
 
+  // Все задачи сотрудника по проекту, сгруппированные по статусам.
+  private async sendTasksByStatus(ctx: any, projectId: number, employeeId: number, edit = false) {
+    const tasks = await this.prisma.task.findMany({
+      where: { projectId, assigneeId: employeeId },
+      orderBy: [{ priorityRank: 'asc' }, { createdAt: 'asc' }],
+      include: { trackings: { where: { employeeId } } },
+    });
+    const project = await this.prisma.project.findUnique({ where: { id: projectId } });
+    const kb = new InlineKeyboard();
+    const lines: string[] = [`📋 ${project?.name} — задачи по статусам:`];
+    for (const s of STATUS_ORDER) {
+      const group = tasks.filter((t) => t.status === s.v);
+      if (!group.length) continue;
+      lines.push(`\n${s.icon} ${s.label} (${group.length}):`);
+      for (const t of group) {
+        const tr = t.trackings[0];
+        const mark = tr?.state === 'RUNNING' ? '🟢' : tr?.state === 'PAUSED' ? '⏸' : '';
+        lines.push(`  #${t.id} P${t.priorityRank} · ${t.title} ${mark}`);
+        kb.text(`${s.icon} #${t.id} ${t.title.slice(0, 22)}`, `open:${t.id}`).row();
+      }
+    }
+    kb.text('⬅️ Открытые', 'tasks').text('📝 Заметки', 'notes');
+    const text = tasks.length ? lines.join('\n') : `📋 ${project?.name}\n\nЗадач на вас нет.`;
+    return edit
+      ? ctx.editMessageText(text, { reply_markup: kb }).catch(() => {})
+      : ctx.reply(text, { reply_markup: kb });
+  }
+
   // Список задач проекта, назначенных сотруднику, с кнопками трекинга.
   private async sendTasks(ctx: any, projectId: number, employeeId: number, edit = false) {
     const tasks = await this.prisma.task.findMany({
@@ -879,7 +922,7 @@ export class BotsService implements OnModuleInit {
 
     if (!tasks.length) {
       const text = `📋 ${project?.name}\n\nНа вас нет открытых задач.`;
-      const kb = new InlineKeyboard().text('🔄 Обновить', 'tasks').text('📝 Заметки', 'notes');
+      const kb = new InlineKeyboard().text('📋 Задачи', 'bystatus').text('📝 Заметки', 'notes');
       return edit
         ? ctx.editMessageText(text, { reply_markup: kb }).catch(() => {})
         : ctx.reply(text, { reply_markup: kb });
@@ -897,7 +940,7 @@ export class BotsService implements OnModuleInit {
       );
       kb.text(`${mark || '📂'} #${t.id} ${t.title.slice(0, 24)}`, `open:${t.id}`).row();
     }
-    kb.text('🔄 Обновить', 'tasks').text('📝 Заметки', 'notes');
+    kb.text('📋 Задачи', 'bystatus').text('📝 Заметки', 'notes');
     const text = lines.join('\n');
     if (edit) return ctx.editMessageText(text, { reply_markup: kb }).catch(() => {});
     return ctx.reply(text, { reply_markup: kb });
