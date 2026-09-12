@@ -28,6 +28,8 @@ const TASK_ST: [string, string][] = [
   ['DONE', 'готово'],
 ];
 
+const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
 const fmtDur = (sec: number) => {
   const h = Math.floor(sec / 3600);
   const m = Math.floor((sec % 3600) / 60);
@@ -645,7 +647,15 @@ export class BotsService implements OnModuleInit {
       const emp = await withAccess(ctx);
       await ctx.answerCallbackQuery();
       if (!emp) return;
-      this.awaitingDesc.set(ctx.from.id, { taskId: Number(ctx.match![1]), employeeId: emp.id });
+      const taskId = Number(ctx.match![1]);
+      const task = await this.prisma.task.findUnique({ where: { id: taskId } });
+      this.awaitingDesc.set(ctx.from.id, { taskId, employeeId: emp.id });
+      if (task?.description) {
+        // Текущий текст — копируемый по клику (Telegram <code>).
+        await ctx.reply(`Текущее описание (нажмите, чтобы скопировать):\n<code>${escapeHtml(task.description)}</code>`, {
+          parse_mode: 'HTML',
+        });
+      }
       await ctx.reply('Пришлите новое описание задачи одним сообщением:');
     });
     // Прикрепить файл/фото
