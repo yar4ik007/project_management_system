@@ -1,6 +1,6 @@
 import { Injectable, Module, OnModuleInit } from '@nestjs/common';
 import { EmployeeRole } from '@prisma/client';
-import { Bot, InlineKeyboard, InputFile } from 'grammy';
+import { Bot, InlineKeyboard, InputFile, Keyboard } from 'grammy';
 import * as bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
 import { extname, join } from 'path';
@@ -17,6 +17,9 @@ const ROLES: { v: EmployeeRole; label: string }[] = [
   { v: 'MANAGER', label: 'Руководитель' },
   { v: 'DEVELOPER', label: 'Разработчик' },
 ];
+// Постоянная кнопка «☰ Меню» внизу — всегда доступна, по нажатию приходит меню.
+const MENU_KB = new Keyboard().text('☰ Меню').resized().persistent();
+
 const TASK_ST: [string, string][] = [
   ['TODO', 'в очереди'],
   ['IN_PROGRESS', 'в работе'],
@@ -133,9 +136,20 @@ export class BotsService implements OnModuleInit {
 
     bot.command('start', async (ctx) => {
       const admin = await this.findAdmin(ctx.from?.id);
-      if (admin) return ctx.reply(`👑 Админ-панель, ${admin.name}. Выберите раздел:`, { reply_markup: this.adminMenu() });
+      if (admin) {
+        await ctx.reply('👇 Кнопка «☰ Меню» всегда внизу.', { reply_markup: MENU_KB });
+        return ctx.reply(`👑 Админ-панель, ${admin.name}. Выберите раздел:`, { reply_markup: this.adminMenu() });
+      }
       this.adminState.set(ctx.from!.id, { flow: 'login', step: 'login' });
       await ctx.reply('Вход в админ-панель. Введите логин:');
+    });
+
+    // Главная кнопка меню (всегда внизу)
+    bot.hears('☰ Меню', async (ctx) => {
+      this.adminState.delete(ctx.from!.id);
+      const admin = await this.findAdmin(ctx.from?.id);
+      if (!admin) return ctx.reply('Напишите /start для входа.', { reply_markup: MENU_KB });
+      return ctx.reply('👑 Админ-панель. Выберите раздел:', { reply_markup: this.adminMenu() });
     });
 
     bot.callbackQuery('a_menu', async (ctx) => {
@@ -332,7 +346,8 @@ export class BotsService implements OnModuleInit {
           return ctx.reply('Неверный логин/пароль или нет прав администратора. /start — попробовать снова.');
         }
         await this.prisma.employee.update({ where: { id: emp.id }, data: { telegramUserId: String(ctx.from.id) } }).catch(() => {});
-        return ctx.reply(`👑 Добро пожаловать, ${emp.name}!`, { reply_markup: this.adminMenu() });
+        await ctx.reply('👇 Кнопка «☰ Меню» всегда внизу.', { reply_markup: MENU_KB });
+        return ctx.reply(`👑 Добро пожаловать, ${emp.name}! Выберите раздел:`, { reply_markup: this.adminMenu() });
       }
 
       if (!(await this.findAdmin(ctx.from.id))) return next();
@@ -528,7 +543,22 @@ export class BotsService implements OnModuleInit {
           })
           .catch(() => {});
       }
-      if (!emp.role) return ctx.reply(noRoleMsg);
+      if (!emp.role) return ctx.reply(noRoleMsg, { reply_markup: MENU_KB });
+      await ctx.reply('👇 Кнопка «☰ Меню» всегда внизу — по ней откроется меню.', { reply_markup: MENU_KB });
+      return this.sendTasks(ctx, projectId, emp.id);
+    });
+
+    // Главная кнопка меню (всегда внизу)
+    bot.hears('☰ Меню', async (ctx) => {
+      const tgId = ctx.from!.id;
+      this.awaitingNote.delete(tgId);
+      this.awaitingEstimate.delete(tgId);
+      this.awaitingLogEdit.delete(tgId);
+      this.awaitingDesc.delete(tgId);
+      this.awaitingAttach.delete(tgId);
+      const emp = await findEmployee(tgId);
+      if (!emp) return ctx.reply('Напишите /start для входа.', { reply_markup: MENU_KB });
+      if (!emp.role) return ctx.reply(noRoleMsg, { reply_markup: MENU_KB });
       return this.sendTasks(ctx, projectId, emp.id);
     });
 
