@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, Project, ProjectStatus, STATUS_LABEL } from '../api';
-import { Modal, PROJECT_STATUS_COLOR } from '../ui';
+import { Modal, PROJECT_STATUS_COLOR, confirmAction } from '../ui';
 
 const EMPTY: Partial<Project> = { name: '', code: '', status: 'PLANNED', color: '#3b82f6', description: '' };
 
@@ -36,6 +36,7 @@ export default function Projects() {
 
   const save = async () => {
     if (!edit?.name || !edit.code) return;
+    if (!(await confirmAction(edit.id ? `Сохранить изменения проекта «${edit.name}»?` : `Создать проект «${edit.name}»?`, { confirmText: 'Сохранить' }))) return;
     if (edit.id) await api.projects.update(edit.id, edit);
     else await api.projects.create(edit);
     setEdit(null);
@@ -43,7 +44,7 @@ export default function Projects() {
   };
 
   const remove = async (p: Project) => {
-    if (!confirm(`Удалить проект «${p.name}»? Его задачи, планы и таймлоги тоже удалятся.`)) return;
+    if (!(await confirmAction(`Удалить проект «${p.name}»? Его задачи, планы и таймлоги тоже удалятся.`, { danger: true, confirmText: 'Удалить' }))) return;
     await api.projects.remove(p.id);
     load();
   };

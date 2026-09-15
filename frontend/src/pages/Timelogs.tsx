@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, TimeLog } from '../api';
+import { confirmAction } from '../ui';
 
 export default function Timelogs() {
   const [logs, setLogs] = useState<TimeLog[]>([]);
@@ -20,6 +21,7 @@ export default function Timelogs() {
   };
   const saveEdit = async () => {
     if (editId == null) return;
+    if (!(await confirmAction('Сохранить изменения записи таймлога?', { confirmText: 'Сохранить' }))) return;
     await api.tasks.updateLog(editId, { hours: Number(eHours), note: eNote });
     setEditId(null);
     load();
@@ -35,7 +37,7 @@ export default function Timelogs() {
   const total = filtered.reduce((s, l) => s + l.hours, 0);
 
   const remove = async (id: number) => {
-    if (!confirm('Удалить запись таймлога?')) return;
+    if (!(await confirmAction('Удалить запись таймлога?', { danger: true, confirmText: 'Удалить' }))) return;
     await api.tasks.removeLog(id);
     load();
   };

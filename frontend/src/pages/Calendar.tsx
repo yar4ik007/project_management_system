@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, Absence, AbsenceType, Assignment, Employee, Project, Task, ABSENCE_LABEL } from '../api';
-import { Modal, mondayOf, ymd, fmtTime } from '../ui';
+import { Modal, mondayOf, ymd, fmtTime, confirmAction } from '../ui';
 
 const DAY_NAMES = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 
@@ -144,9 +144,10 @@ export default function Calendar() {
                         className="slot"
                         style={{ background: s.task?.project?.color || '#3b82f6' }}
                         title={s.task?.title}
-                        onClick={(ev) => {
+                        onClick={async (ev) => {
                           ev.stopPropagation();
-                          if (confirm(`Удалить слот «${s.task?.title}»?`)) api.assignments.remove(s.id).then(load);
+                          if (!(await confirmAction(`Удалить слот «${s.task?.title}»?`, { danger: true, confirmText: 'Удалить' }))) return;
+                          api.assignments.remove(s.id).then(load);
                         }}
                       >
                         {fmtTime(s.startAt)}–{fmtTime(s.endAt)}
@@ -167,6 +168,7 @@ export default function Calendar() {
         <SlotModal
           employee={slotModal.employee}
           day={slotModal.day}
+          existingSlots={slotsFor(slotModal.employee.id, slotModal.day)}
           tasks={tasks}
           projects={projects}
           onClose={() => setSlotModal(null)}
@@ -238,7 +240,7 @@ function DayView({
       await api.assignments.update(d.id, { employeeId: employee.id, startAt: startAt.toISOString(), endAt: endAt.toISOString() });
       onReload();
     } catch (err: any) {
-      if (err.status === 409 && confirm('Слот пересекается с другим/отпуском. Всё равно перенести?')) {
+      if (err.status === 409 && (await confirmAction('Слот пересекается с другим/отпуском. Всё равно перенести?', { danger: true, confirmText: 'Перенести' }))) {
         await api.assignments.update(d.id, { employeeId: employee.id, startAt: startAt.toISOString(), endAt: endAt.toISOString() }, true);
         onReload();
       }
@@ -304,9 +306,10 @@ function DayView({
                       onDragStart={(ev) => {
                         drag.current = { id: s.id, durationMin, grabY: ev.nativeEvent.offsetY };
                       }}
-                      onClick={(ev) => {
+                      onClick={async (ev) => {
                         ev.stopPropagation();
-                        if (confirm(`Удалить слот «${s.task?.title}»?`)) api.assignments.remove(s.id).then(onReload);
+                        if (!(await confirmAction(`Удалить слот «${s.task?.title}»?`, { danger: true, confirmText: 'Удалить' }))) return;
+                        api.assignments.remove(s.id).then(onReload);
                       }}
                       className="slot"
                       style={{
@@ -339,6 +342,7 @@ function DayView({
 function SlotModal({
   employee,
   day,
+  existingSlots,
   tasks,
   projects,
   onClose,
@@ -346,17 +350,32 @@ function SlotModal({
 }: {
   employee: Employee;
   day: Date;
+  existingSlots: Assignment[];
   tasks: Task[];
   projects: Project[];
   onClose: () => void;
   onSaved: () => void;
 }) {
+  // Дефолтное время: после последнего слота сотрудника в этот день (чтобы вторую
+  // задачу можно было запланировать без пересечения). Если слотов нет — 10:00–14:00.
+  const [defStart, defEnd] = (() => {
+    const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    const lastEnd = existingSlots.reduce<Date | null>((max, s) => {
+      const e = new Date(s.endAt);
+      return !max || e > max ? e : max;
+    }, null);
+    if (!lastEnd || lastEnd.getHours() >= 20) return ['10:00', '14:00'];
+    const s = new Date(lastEnd);
+    const e = new Date(lastEnd.getTime() + 4 * 3600000);
+    return [hhmm(s), e.getDate() === s.getDate() ? hhmm(e) : '23:59'];
+  })();
+
   // taskId: 0 — не выбрано, -1 — «новая задача», >0 — существующая
   const [taskId, setTaskId] = useState<number>(0);
   const [newTitle, setNewTitle] = useState('');
   const [newProjectId, setNewProjectId] = useState<number>(projects[0]?.id || 0);
-  const [start, setStart] = useState('10:00');
-  const [end, setEnd] = useState('14:00');
+  const [start, setStart] = useState(defStart);
+  const [end, setEnd] = useState(defEnd);
   const [error, setError] = useState<string | null>(null);
   const [conflict, setConflict] = useState<any>(null);
 
@@ -380,7 +399,7 @@ function SlotModal({
   const submit = async (force: boolean) => {
     setError(null);
     let realTaskId = taskId;
-    // Создание новой задачи прямо из календаря
+    // Валидация перед подтверждением
     if (isNew) {
       if (!newTitle.trim()) {
         setError('Введите название задачи');
@@ -390,6 +409,13 @@ function SlotModal({
         setError('Выберите проект');
         return;
       }
+    } else if (!taskId) {
+      setError('Выберите задачу или создайте новую');
+      return;
+    }
+    if (!(await confirmAction(isNew ? `Создать задачу «${newTitle.trim()}» и запланировать?` : 'Запланировать задачу в этот слот?', { confirmText: isNew ? 'Создать' : 'Запланировать' }))) return;
+    // Создание новой задачи прямо из календаря
+    if (isNew) {
       try {
         const t = await api.tasks.create({
           projectId: newProjectId,
@@ -403,9 +429,6 @@ function SlotModal({
         setError(e.message || 'Не удалось создать задачу');
         return;
       }
-    } else if (!taskId) {
-      setError('Выберите задачу или создайте новую');
-      return;
     }
     const { startAt, endAt } = build();
     try {
@@ -508,6 +531,7 @@ function AbsenceModal({
   const [note, setNote] = useState('');
 
   const save = async () => {
+    if (!(await confirmAction('Сохранить отпуск / отсутствие?', { confirmText: 'Сохранить' }))) return;
     await api.absences.create({ employeeId, type, startDate, endDate, note });
     onSaved();
   };

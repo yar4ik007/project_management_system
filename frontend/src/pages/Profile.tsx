@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api, roleLabel } from '../api';
 import { useAuth } from '../auth';
+import { confirmAction } from '../ui';
 
 export default function Profile() {
   const { user, setCurrentUser } = useAuth();
@@ -84,6 +85,7 @@ function LoginBlock() {
   const save = async () => {
     setErr(null);
     setMsg(null);
+    if (!(await confirmAction('Сохранить новый логин?', { confirmText: 'Сохранить' }))) return;
     try {
       const u = await api.auth.updateAccount({ login });
       setCurrentUser(u);
@@ -120,6 +122,7 @@ function PasswordBlock() {
     setErr(null);
     setMsg(null);
     if (!nw) return;
+    if (!(await confirmAction('Изменить пароль?', { confirmText: 'Изменить' }))) return;
     try {
       await api.auth.updateAccount({ currentPassword: cur, newPassword: nw });
       setCur('');
@@ -162,6 +165,7 @@ function TwoFactorBlock({ onChanged }: { onChanged: (u: any) => void }) {
   };
   const enable = async () => {
     setErr(null);
+    if (!(await confirmAction('Включить двухфакторную аутентификацию?', { confirmText: 'Включить' }))) return;
     try {
       await api.auth.enable2fa(code.trim());
       onChanged(await api.auth.me());
@@ -173,6 +177,7 @@ function TwoFactorBlock({ onChanged }: { onChanged: (u: any) => void }) {
   };
   const disable = async () => {
     setErr(null);
+    if (!(await confirmAction('Отключить двухфакторную аутентификацию?', { danger: true, confirmText: 'Отключить' }))) return;
     try {
       await api.auth.disable2fa(code.trim());
       onChanged(await api.auth.me());

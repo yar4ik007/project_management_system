@@ -5,14 +5,13 @@ import {
   Employee,
   Project,
   Task,
-  TaskPriority,
-  TaskStatus,
   Tracking,
   PRIORITY_LABEL,
   TASK_STATUS_LABEL,
 } from '../api';
-import { Modal, TASK_STATUS_COLOR, PRIORITY_COLOR } from '../ui';
+import { Modal, TASK_STATUS_COLOR, PRIORITY_COLOR, confirmAction } from '../ui';
 import TaskDetail from '../components/TaskDetail';
+import TaskEditModal from '../components/TaskEditModal';
 import WorklogCharts from './Analytics';
 
 export default function ProjectDetail() {
@@ -45,6 +44,8 @@ export default function ProjectDetail() {
       alert('У задачи нет исполнителя — назначьте его, чтобы трекать время.');
       return;
     }
+    const msg = { start: 'Начать трекинг времени по задаче?', pause: 'Поставить трекинг на паузу?', stop: 'Остановить трекинг и записать время?' }[fn];
+    if (!(await confirmAction(msg, fn === 'stop' ? { danger: true } : {}))) return;
     await api.tracking[fn](t.id, t.assigneeId);
     load();
   };
@@ -52,14 +53,6 @@ export default function ProjectDetail() {
   if (!project) return <div>Загрузка…</div>;
 
   const memberIds = new Set(project.members?.map((m) => m.employee.id));
-  const saveTask = async () => {
-    if (!taskEdit?.title) return;
-    const payload = { ...taskEdit, projectId: pid, estimateHours: Number(taskEdit.estimateHours) || 0 };
-    if (taskEdit.id) await api.tasks.update(taskEdit.id, payload);
-    else await api.tasks.create(payload);
-    setTaskEdit(null);
-    load();
-  };
 
   return (
     <div>
@@ -101,6 +94,7 @@ export default function ProjectDetail() {
                     <button
                       className="sm danger"
                       onClick={async () => {
+                        if (!(await confirmAction(`Убрать ${m.employee.name} из проекта?`, { danger: true, confirmText: 'Убрать' }))) return;
                         await api.projects.removeMember(pid, m.employee.id);
                         load();
                       }}
@@ -204,7 +198,7 @@ export default function ProjectDetail() {
                     <button
                       className="sm danger"
                       onClick={async () => {
-                        if (confirm('Удалить задачу?')) {
+                        if (await confirmAction(`Удалить задачу «${t.title}»?`, { danger: true, confirmText: 'Удалить' })) {
                           await api.tasks.remove(t.id);
                           load();
                         }
@@ -240,82 +234,13 @@ export default function ProjectDetail() {
       <WorklogCharts projectId={pid} />
 
       {taskEdit && (
-        <Modal title={taskEdit.id ? 'Редактировать задачу' : 'Новая задача'} onClose={() => setTaskEdit(null)}>
-          <div className="field">
-            <label>Название</label>
-            <input value={taskEdit.title || ''} onChange={(e) => setTaskEdit({ ...taskEdit, title: e.target.value })} />
-          </div>
-          <div className="row">
-            <div className="field" style={{ flex: 1 }}>
-              <label>Статус</label>
-              <select
-                value={taskEdit.status}
-                onChange={(e) => setTaskEdit({ ...taskEdit, status: e.target.value as TaskStatus })}
-              >
-                {(Object.keys(TASK_STATUS_LABEL) as TaskStatus[]).map((s) => (
-                  <option key={s} value={s}>
-                    {TASK_STATUS_LABEL[s]}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="field" style={{ flex: 1 }}>
-              <label>Приоритет</label>
-              <select
-                value={taskEdit.priority}
-                onChange={(e) => setTaskEdit({ ...taskEdit, priority: e.target.value as TaskPriority })}
-              >
-                {(Object.keys(PRIORITY_LABEL) as TaskPriority[]).map((p) => (
-                  <option key={p} value={p}>
-                    {PRIORITY_LABEL[p]}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div className="row">
-            <div className="field" style={{ flex: 1 }}>
-              <label>Исполнитель</label>
-              <select
-                value={taskEdit.assigneeId ?? ''}
-                onChange={(e) => setTaskEdit({ ...taskEdit, assigneeId: e.target.value ? Number(e.target.value) : null })}
-              >
-                <option value="">—</option>
-                {employees.map((em) => (
-                  <option key={em.id} value={em.id}>
-                    {em.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="field" style={{ width: 120 }}>
-              <label>Оценка, ч</label>
-              <input
-                type="number"
-                value={taskEdit.estimateHours ?? 0}
-                onChange={(e) => setTaskEdit({ ...taskEdit, estimateHours: Number(e.target.value) })}
-              />
-            </div>
-          </div>
-          <div className="field" style={{ width: 200 }}>
-            <label>Приоритет № (меньше — важнее)</label>
-            <input
-              type="number"
-              value={taskEdit.priorityRank ?? 100}
-              onChange={(e) => setTaskEdit({ ...taskEdit, priorityRank: Number(e.target.value) })}
-            />
-          </div>
-          <div className="field">
-            <label>Описание</label>
-            <textarea
-              value={taskEdit.description || ''}
-              onChange={(e) => setTaskEdit({ ...taskEdit, description: e.target.value })}
-            />
-          </div>
-          <button className="primary" onClick={saveTask}>
-            Сохранить
-          </button>
-        </Modal>
+        <TaskEditModal
+          task={taskEdit}
+          employees={employees}
+          projectId={pid}
+          onClose={() => setTaskEdit(null)}
+          onSaved={load}
+        />
       )}
 
       {logFor && (
@@ -337,6 +262,7 @@ export default function ProjectDetail() {
                       <button
                         className="sm primary"
                         onClick={async () => {
+                          if (!(await confirmAction(`Добавить ${e.name} в проект?`))) return;
                           await api.projects.addMember(pid, e.id, e.position || undefined);
                           await load();
                           setAddMember(false);
@@ -378,6 +304,7 @@ function LogModal({
 
   const add = async () => {
     if (!hours || !employeeId) return;
+    if (!(await confirmAction(`Добавить запись ${hours} ч?`))) return;
     await api.tasks.addLog(task.id, { employeeId, hours: Number(hours), note });
     setHours('');
     setNote('');
@@ -425,6 +352,7 @@ function LogModal({
                 <button
                   className="sm danger"
                   onClick={async () => {
+                    if (!(await confirmAction(`Удалить запись ${l.hours} ч?`, { danger: true, confirmText: 'Удалить' }))) return;
                     await api.tasks.removeLog(l.id);
                     reload();
                     onSaved();

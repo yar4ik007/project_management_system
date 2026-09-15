@@ -1,15 +1,20 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api, Task, PRIORITY_LABEL, TASK_STATUS_LABEL } from '../api';
-import { TASK_STATUS_COLOR, PRIORITY_COLOR } from '../ui';
+import { api, Employee, Task, PRIORITY_LABEL, TASK_STATUS_LABEL } from '../api';
+import { TASK_STATUS_COLOR, PRIORITY_COLOR, confirmAction } from '../ui';
+import TaskEditModal from '../components/TaskEditModal';
 
 export default function AllTasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('');
+  const [edit, setEdit] = useState<Task | null>(null);
 
+  const load = () => api.tasks.list().then(setTasks);
   useEffect(() => {
-    api.tasks.list().then(setTasks);
+    load();
+    api.employees.list().then(setEmployees);
   }, []);
 
   const filtered = tasks.filter(
@@ -46,12 +51,13 @@ export default function AllTasks() {
               <th>Исполнитель</th>
               <th>Автор</th>
               <th>Оценка / Факт</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={7} className="muted">
+                <td colSpan={8} className="muted">
                   Задач нет.
                 </td>
               </tr>
@@ -90,12 +96,37 @@ export default function AllTasks() {
                   <td style={{ color: over ? 'var(--danger)' : undefined }}>
                     {t.estimateHours} / {t.spentHours || 0} ч
                   </td>
+                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    <button className="sm" onClick={() => setEdit(t)}>
+                      Изм.
+                    </button>{' '}
+                    <button
+                      className="sm danger"
+                      onClick={async () => {
+                        if (!(await confirmAction(`Удалить задачу «${t.title}»?`, { danger: true, confirmText: 'Удалить' }))) return;
+                        await api.tasks.remove(t.id);
+                        load();
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
       </div>
+
+      {edit && (
+        <TaskEditModal
+          task={edit}
+          employees={employees}
+          projectId={edit.projectId}
+          onClose={() => setEdit(null)}
+          onSaved={load}
+        />
+      )}
     </div>
   );
 }

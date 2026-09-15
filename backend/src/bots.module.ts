@@ -138,7 +138,46 @@ export class BotsService implements OnModuleInit {
       .text('✅ Задачи', 'a_tasks');
   }
 
+  /**
+   * Шлюз подтверждения деструктивных действий. Регистрируется ПЕРВЫМ у бота:
+   * если data совпадает с одним из destructive-паттернов — вместо выполнения
+   * показываем инлайн «✅ Да / ↩️ Отмена». После «Да» подменяем data на исходную
+   * и пропускаем дальше — срабатывает штатный обработчик.
+   */
+  private installConfirm(bot: Bot, destructive: RegExp[]) {
+    bot.on('callback_query:data', async (ctx, next) => {
+      const data = ctx.callbackQuery.data;
+      if (data.startsWith('cfmyes:') || data === 'cfmno') return next();
+      if (destructive.some((re) => re.test(data))) {
+        await ctx.answerCallbackQuery();
+        await ctx.reply('⚠️ Подтвердите действие:', {
+          reply_markup: new InlineKeyboard().text('✅ Да', `cfmyes:${data}`).text('↩️ Отмена', 'cfmno'),
+        });
+        return; // не вызываем next — действие не выполняется до подтверждения
+      }
+      return next();
+    });
+    bot.callbackQuery('cfmno', async (ctx) => {
+      await ctx.answerCallbackQuery('Отменено');
+      await ctx.editMessageText('Действие отменено.').catch(() => {});
+    });
+    bot.callbackQuery(/^cfmyes:(.+)$/, async (ctx, next) => {
+      // Подменяем data на исходную — дальше сработает штатный деструктивный обработчик.
+      ctx.callbackQuery.data = ctx.match![1];
+      await next();
+    });
+  }
+
   private wireAdmin(bot: Bot) {
+    // Деструктивные/необратимые действия админ-бота (трекинг НЕ трогаем).
+    this.installConfirm(bot, [
+      /^a_proj_del:\d+$/, // удаление проекта
+      /^a_emp_del:\d+$/, // удаление сотрудника
+      /^a_emp_active:\d+$/, // деактивация/активация сотрудника
+      /^a_setrole:\d+:\w+$/, // смена роли
+      /^a_setst:\d+:DONE$/, // завершение задачи (перевод в «готово»)
+    ]);
+
     const send = (ctx: any, text: string, kb?: InlineKeyboard, edit = false) =>
       edit
         ? ctx.editMessageText(text, { reply_markup: kb }).catch(() => ctx.reply(text, { reply_markup: kb }))
@@ -521,6 +560,11 @@ export class BotsService implements OnModuleInit {
   }
 
   private wire(bot: Bot, projectId: number) {
+    // Деструктивные действия бота проекта (трекинг старт/пауза/стоп НЕ трогаем).
+    this.installConfirm(bot, [
+      /^note_del:\d+$/, // удаление заметки
+    ]);
+
     const findEmployee = (tgId?: number) =>
       tgId ? this.prisma.employee.findUnique({ where: { telegramUserId: String(tgId) } }) : Promise.resolve(null);
 

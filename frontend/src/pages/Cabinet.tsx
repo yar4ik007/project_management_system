@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { api, Assignment, Employee, Note, Task, Tracking, roleLabel, TASK_STATUS_LABEL } from '../api';
 import { useActingAs } from '../impersonation';
 import { useAuth } from '../auth';
-import { TASK_STATUS_COLOR, fmtTime } from '../ui';
+import { TASK_STATUS_COLOR, fmtTime, confirmAction } from '../ui';
 import TaskDetail from '../components/TaskDetail';
 
 export default function Cabinet() {
@@ -90,15 +90,33 @@ export default function Cabinet() {
                   <div style={{ whiteSpace: 'nowrap' }}>
                     {tr?.state === 'RUNNING' ? (
                       <>
-                        <button className="sm" onClick={() => track('pause', t)}>
+                        <button
+                          className="sm"
+                          onClick={async () => {
+                            if (!(await confirmAction(`Поставить на паузу трекинг задачи «${t.title}»?`, { confirmText: 'Пауза' }))) return;
+                            track('pause', t);
+                          }}
+                        >
                           ⏸
                         </button>{' '}
-                        <button className="sm danger" onClick={() => track('stop', t)}>
+                        <button
+                          className="sm danger"
+                          onClick={async () => {
+                            if (!(await confirmAction(`Остановить трекинг задачи «${t.title}»?`, { danger: true, confirmText: 'Остановить' }))) return;
+                            track('stop', t);
+                          }}
+                        >
                           ⏹
                         </button>
                       </>
                     ) : (
-                      <button className="sm primary" onClick={() => track('start', t)}>
+                      <button
+                        className="sm primary"
+                        onClick={async () => {
+                          if (!(await confirmAction(`${tr ? 'Продолжить' : 'Начать'} трекинг задачи «${t.title}»?`, { confirmText: tr ? 'Продолжить' : 'Старт' }))) return;
+                          track('start', t);
+                        }}
+                      >
                         ▶️ {tr ? 'Продолжить' : 'Старт'}
                       </button>
                     )}
@@ -152,21 +170,22 @@ export function NotesBlock({ employeeId }: { employeeId: number }) {
 
   const add = async () => {
     if (!draft.trim()) return;
+    if (!(await confirmAction('Добавить заметку?', { confirmText: 'Добавить' }))) return;
     await api.employees.addNote(employeeId, draft.trim());
     setDraft('');
     load();
   };
   const saveEdit = async () => {
     if (editId == null) return;
+    if (!(await confirmAction('Сохранить изменения заметки?', { confirmText: 'Сохранить' }))) return;
     await api.employees.updateNote(editId, editText);
     setEditId(null);
     load();
   };
   const del = async (id: number) => {
-    if (confirm('Удалить заметку?')) {
-      await api.employees.removeNote(id);
-      load();
-    }
+    if (!(await confirmAction('Удалить заметку?', { danger: true, confirmText: 'Удалить' }))) return;
+    await api.employees.removeNote(id);
+    load();
   };
 
   return (

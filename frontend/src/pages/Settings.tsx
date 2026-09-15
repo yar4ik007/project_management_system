@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
+import { confirmAction } from '../ui';
 
 export default function Settings() {
   const [token, setToken] = useState('');
@@ -35,6 +36,7 @@ export default function Settings() {
   }, [token]);
 
   const save = async () => {
+    if (!(await confirmAction(token.trim() ? 'Сохранить токен и перезапустить админ-бота?' : 'Очистить токен и остановить админ-бота?', { danger: !token.trim(), confirmText: 'Сохранить' }))) return;
     setBusy(true);
     setMsg(null);
     try {

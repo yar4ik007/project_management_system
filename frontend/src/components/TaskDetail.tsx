@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, Attachment, Task } from '../api';
-import { Modal } from '../ui';
+import { Modal, confirmAction } from '../ui';
 
 export default function TaskDetail({ taskId, onClose, onChanged }: { taskId: number; onClose: () => void; onChanged?: () => void }) {
   const [task, setTask] = useState<Task | null>(null);
@@ -30,6 +30,7 @@ export default function TaskDetail({ taskId, onClose, onChanged }: { taskId: num
   };
 
   const saveDesc = async () => {
+    if (!(await confirmAction('Сохранить изменения описания задачи?', { confirmText: 'Сохранить' }))) return;
     setErr(null);
     try {
       await api.tasks.updateDescription(taskId, descDraft);
@@ -57,7 +58,7 @@ export default function TaskDetail({ taskId, onClose, onChanged }: { taskId: num
   };
 
   const del = async (id: number) => {
-    if (!confirm('Удалить вложение?')) return;
+    if (!(await confirmAction('Удалить вложение?', { danger: true, confirmText: 'Удалить' }))) return;
     await api.attachments.remove(id);
     setAtts(await api.attachments.list(taskId));
   };

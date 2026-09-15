@@ -14,6 +14,7 @@ import Timelogs from './pages/Timelogs';
 import { api, Employee } from './api';
 import { setActingAs, useActingAs } from './impersonation';
 import { LoginPage, useAuth } from './auth';
+import { ConfirmHost } from './ui';
 
 function ImpersonationBanner() {
   const actingAs = useActingAs();
@@ -94,6 +95,7 @@ export default function App() {
 
   return (
     <div className="app">
+      <ConfirmHost />
       <Sidebar isAdmin={isAdmin} />
       <main className="main">
         {isAdmin && <ImpersonationBanner />}

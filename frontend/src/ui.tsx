@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
 export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
@@ -13,6 +13,50 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
         {children}
       </div>
     </div>
+  );
+}
+
+// ─── Единое подтверждение действий ───────────────────────────────────────────
+// Правило проекта: любое изменяющее/удаляющее действие сотрудника проходит через
+// попап-подтверждение. Ничего не удаляется и не меняется по одному клику.
+// Использование:  if (await confirmAction('Удалить задачу?', { danger: true })) { ... }
+type ConfirmOpts = { title?: string; confirmText?: string; danger?: boolean };
+let _openConfirm: ((message: string, opts: ConfirmOpts) => Promise<boolean>) | null = null;
+
+export function confirmAction(message: string, opts: ConfirmOpts = {}): Promise<boolean> {
+  if (_openConfirm) return _openConfirm(message, opts);
+  // Фолбэк, если хост ещё не смонтирован.
+  return Promise.resolve(window.confirm(message));
+}
+
+export function ConfirmHost() {
+  const [state, setState] = useState<
+    (ConfirmOpts & { message: string; resolve: (v: boolean) => void }) | null
+  >(null);
+  useEffect(() => {
+    _openConfirm = (message, opts) =>
+      new Promise<boolean>((resolve) => setState({ message, ...opts, resolve }));
+    return () => {
+      _openConfirm = null;
+    };
+  }, []);
+  if (!state) return null;
+  const done = (v: boolean) => {
+    state.resolve(v);
+    setState(null);
+  };
+  return (
+    <Modal title={state.title || 'Подтверждение'} onClose={() => done(false)}>
+      <p style={{ margin: '4px 0 16px', whiteSpace: 'pre-wrap' }}>{state.message}</p>
+      <div className="row">
+        <button className={state.danger ? 'danger' : 'primary'} onClick={() => done(true)}>
+          {state.confirmText || 'Подтвердить'}
+        </button>
+        <button className="sm" onClick={() => done(false)}>
+          Отмена
+        </button>
+      </div>
+    </Modal>
   );
 }
 

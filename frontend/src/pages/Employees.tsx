@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, Employee, Role, ROLE_LABEL, roleLabel } from '../api';
-import { Modal } from '../ui';
+import { Modal, confirmAction } from '../ui';
 import { setActingAs } from '../impersonation';
 
 const EMPTY: Partial<Employee> = {
@@ -26,6 +26,7 @@ export default function Employees() {
 
   const save = async () => {
     if (!edit?.name) return;
+    if (!(await confirmAction(edit.id ? `Сохранить изменения сотрудника «${edit.name}»?` : `Создать сотрудника «${edit.name}»?`, { confirmText: 'Сохранить' }))) return;
     const payload = { ...edit, weeklyHours: Number(edit.weeklyHours) };
     if (edit.id) await api.employees.update(edit.id, payload);
     else await api.employees.create(payload);
@@ -34,7 +35,7 @@ export default function Employees() {
   };
 
   const remove = async (id: number) => {
-    if (!confirm('Удалить сотрудника? Его задачи/логи/планы тоже удалятся.')) return;
+    if (!(await confirmAction('Удалить сотрудника? Его задачи/логи/планы тоже удалятся.', { danger: true, confirmText: 'Удалить' }))) return;
     await api.employees.remove(id);
     load();
   };
